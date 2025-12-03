@@ -1,0 +1,18 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Главная";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Добро пожаловать в систему управления библиотекой</h1>
+    <p class="lead">Просматривайте каталог книг, брайте их в займ и управляйте своей библиотекой</p>
+    <a href="/books" class="btn btn-primary btn-lg">Перейти к каталогу книг</a>
+</div>
+
+@section Scripts {
+    <script>
+        checkAuth();
+    </script>
+}
+

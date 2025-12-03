@@ -1,0 +1,193 @@
+@page "/books/{id:guid}"
+@model LibraryManagement.Pages.Books.DetailsModel
+@{
+    ViewData["Title"] = "Детали книги";
+}
+
+<div id="bookDetails">
+    <!-- Детали книги будут загружены здесь -->
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Удалить книгу</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Вы уверены, что хотите удалить эту книгу? Это действие нельзя отменить.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const bookId = '@RouteData.Values["id"]';
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        let deleteModalInstance = null;
+
+        async function loadBookDetails() {
+            try {
+                const response = await fetch(`/api/books/${bookId}`);
+                if (!response.ok) {
+                    document.getElementById('bookDetails').innerHTML = '<div class="alert alert-warning">Книга не найдена</div>';
+                    return;
+                }
+
+                const book = await response.json();
+                displayBookDetails(book);
+            } catch (error) {
+                console.error('Ошибка загрузки книги:', error);
+                document.getElementById('bookDetails').innerHTML = '<div class="alert alert-danger">Не удалось загрузить книгу</div>';
+            }
+        }
+
+        function displayBookDetails(book) {
+            const container = document.getElementById('bookDetails');
+            const authorsList = (book.authorNames && book.authorNames.length) ? book.authorNames : [];
+            const genresList = (book.genreNames && book.genreNames.length) ? book.genreNames : [];
+            const authors = authorsList.length ? authorsList.join(', ') : 'Не указаны';
+            const genres = genresList.length ? genresList.join(', ') : 'Не указаны';
+            const isAvailable = book.availableCopies > 0;
+            const canLoan = role === 'user' && !!token && isAvailable;
+
+            const branchesSection = (book.branchAvailability && book.branchAvailability.length)
+                ? `
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Филиал</th>
+                                    <th>Адрес</th>
+                                    <th>Доступно</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${book.branchAvailability.map(branch => `
+                                    <tr>
+                                        <td>${branch.branchName}</td>
+                                        <td>${branch.address ? branch.address : ''} ${branch.city ? `(${branch.city})` : ''}</td>
+                                        <td>${branch.availableCopies} / ${branch.totalCopies}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `
+                : '<p class="text-muted mt-3">Информация о филиалах отсутствует</p>';
+
+            container.innerHTML = `
+                <div class="row gy-3">
+                    <div class="col-md-4">
+                        ${book.coverImagePath
+                            ? `<img src="/images/${book.coverImagePath}" class="img-fluid rounded" alt="Обложка книги">`
+                            : '<div class="border rounded p-3 text-center text-muted">Изображение отсутствует</div>'}
+                    </div>
+                    <div class="col-md-8">
+                        <h2>${book.title}</h2>
+                        <p class="mb-1"><strong>Авторы:</strong> ${authors}</p>
+                        <p class="mb-1"><strong>Жанры:</strong> ${genres}</p>
+                        <p class="mb-1"><strong>ISBN:</strong> ${book.isbn}</p>
+                        <p class="mb-1"><strong>Год издания:</strong> ${book.publicationYear ?? 'Не указан'}</p>
+                        <p class="mb-1"><strong>Описание:</strong> ${book.description ?? 'Нет описания'}</p>
+                        <p class="mb-3"><strong>Доступно копий:</strong> ${book.availableCopies}</p>
+
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            ${canLoan ? `<button class="btn btn-success" onclick="loanBook(this)">Взять книгу</button>` : ''}
+                            ${(!canLoan && isAvailable && role !== 'user') ? '<span class="text-muted">Взять книгу может только пользователь</span>' : ''}
+                            ${!isAvailable ? '<span class="text-danger fw-semibold">Нет в наличии</span>' : ''}
+                            ${role === 'admin'
+                                ? `
+                                    <a href="/admin/books/edit/${book.bookId}" class="btn btn-warning">Редактировать</a>
+                                    <button class="btn btn-outline-danger" onclick="deleteBook()">Удалить</button>
+                                `
+                                : ''}
+                        </div>
+
+                        <h5>Наличие по филиалам</h5>
+                        ${branchesSection}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loanBook(button) {
+            if (!token) {
+                alert('Необходимо войти в систему');
+                window.location.href = '/auth/login';
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Обработка...';
+
+            try {
+                const response = await fetch(`/api/books/${bookId}/loan`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка при взятии книги');
+                }
+
+                alert('Книга успешно взята');
+                await loadBookDetails();
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Взять книгу';
+            }
+        }
+
+        function deleteBook() {
+            if (role !== 'admin') {
+                alert('Недостаточно прав для удаления книги');
+                return;
+            }
+
+            const modalElement = document.getElementById('deleteModal');
+            deleteModalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+            deleteModalInstance.show();
+
+            document.getElementById('confirmDeleteBtn').onclick = confirmDelete;
+        }
+
+        async function confirmDelete() {
+            try {
+                const response = await fetch(`/api/books/${bookId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка при удалении книги');
+                }
+
+                deleteModalInstance?.hide();
+                alert('Книга удалена');
+                window.location.href = '/books';
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        loadBookDetails();
+    </script>
+}
+

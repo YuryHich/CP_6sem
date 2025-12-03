@@ -1,0 +1,101 @@
+@page
+@model LibraryManagement.Pages.User.LoansModel
+@{
+    ViewData["Title"] = "Мои займы";
+}
+
+<h2>Мои займы</h2>
+
+<div id="loansContainer">
+    <!-- Займы будут загружены здесь -->
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const userId = localStorage.getItem('userId');
+
+        if (!token) {
+            window.location.href = '/auth/login';
+        }
+
+        async function loadLoans() {
+            try {
+                const response = await fetch(`/api/users/${userId}/loans`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const loans = await response.json();
+                    displayLoans(loans);
+                } else {
+                    if (response.status === 401) {
+                        window.location.href = '/auth/login';
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки займов:', error);
+            }
+        }
+
+        function displayLoans(loans) {
+            const container = document.getElementById('loansContainer');
+            
+            if (loans.length === 0) {
+                container.innerHTML = '<p>У вас нет активных займов</p>';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr><th>Название</th><th>ISBN</th><th>Дата займа</th><th>Срок возврата</th><th>Статус</th><th>Действие</th></tr></thead><tbody>';
+            
+            loans.forEach(loan => {
+                const isReturned = loan.returnDate !== null;
+                const isOverdue = loan.isOverdue;
+                const statusClass = isReturned ? 'text-success' : (isOverdue ? 'text-danger' : 'text-warning');
+                const statusText = isReturned ? 'Возвращена' : (isOverdue ? 'Просрочена' : 'В займе');
+                
+                html += `
+                    <tr>
+                        <td>${loan.bookTitle}</td>
+                        <td>${loan.isbn}</td>
+                        <td>${new Date(loan.loanDate).toLocaleDateString('ru-RU')}</td>
+                        <td>${new Date(loan.dueDate).toLocaleDateString('ru-RU')}</td>
+                        <td class="${statusClass}">${statusText}</td>
+                        <td>
+                            ${!isReturned ? `<button class="btn btn-sm btn-primary" onclick="returnBook('${loan.bookId}')">Вернуть</button>` : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function returnBook(bookId) {
+            try {
+                const response = await fetch(`/api/books/${bookId}/return`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    alert('Книга успешно возвращена');
+                    loadLoans();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Ошибка при возврате книги');
+                }
+            } catch (error) {
+                alert('Ошибка соединения');
+            }
+        }
+
+        loadLoans();
+    </script>
+}
+

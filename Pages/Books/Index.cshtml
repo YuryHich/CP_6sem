@@ -1,0 +1,213 @@
+@page
+@model LibraryManagement.Pages.Books.IndexModel
+@{
+    ViewData["Title"] = "Каталог книг";
+}
+
+<h2>Каталог книг</h2>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input type="text" class="form-control" id="searchInput" placeholder="Поиск по названию или ISBN">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="genreFilter">
+            <option value="">Все жанры</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="authorFilter">
+            <option value="">Все авторы</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100" onclick="loadBooks()">Поиск</button>
+    </div>
+</div>
+
+<div id="booksContainer" class="row">
+    <!-- Книги будут загружены здесь -->
+</div>
+
+<div class="d-flex justify-content-center mt-3">
+    <nav>
+        <ul class="pagination" id="pagination">
+            <!-- Пагинация будет добавлена здесь -->
+        </ul>
+    </nav>
+</div>
+
+@section Scripts {
+    <script>
+        let currentPage = 1;
+        const pageSize = 10;
+        const role = localStorage.getItem('role');
+        const authorsMap = new Map();
+        const genresMap = new Map();
+
+        async function loadGenres() {
+            try {
+                const response = await fetch('/api/genres');
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить жанры');
+                }
+
+                const genres = await response.json();
+                const select = document.getElementById('genreFilter');
+                genres.forEach(genre => {
+                    genresMap.set(genre.genreId, genre.genreName);
+                    const option = document.createElement('option');
+                    option.value = genre.genreId;
+                    option.textContent = genre.genreName;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки жанров:', error);
+            }
+        }
+
+        async function loadAuthors() {
+            try {
+                const response = await fetch('/api/authors');
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить авторов');
+                }
+
+                const authors = await response.json();
+                const select = document.getElementById('authorFilter');
+                authors.forEach(author => {
+                    const fullName = `${author.firstName} ${author.lastName}`.trim();
+                    authorsMap.set(author.authorId, fullName);
+                    const option = document.createElement('option');
+                    option.value = author.authorId;
+                    option.textContent = fullName;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки авторов:', error);
+            }
+        }
+
+        async function loadBooks(page = 1) {
+            currentPage = page;
+            const search = document.getElementById('searchInput').value;
+            const genreId = document.getElementById('genreFilter').value;
+            const authorId = document.getElementById('authorFilter').value;
+
+            let url = `/api/books?page=${page}&size=${pageSize}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (genreId) url += `&genre=${genreId}`;
+            if (authorId) url += `&author=${authorId}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить список книг');
+                }
+
+                const data = await response.json();
+                const books = data.items ?? [];
+                displayBooks(books);
+                renderPagination(data.totalCount ?? books.length);
+            } catch (error) {
+                console.error('Ошибка загрузки книг:', error);
+                const container = document.getElementById('booksContainer');
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-danger">${error.message}</div>
+                    </div>`;
+            }
+        }
+
+        function renderPagination(totalCount) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+            if (totalPages <= 1) {
+                return;
+            }
+
+            const createItem = (page, label, disabled = false, active = false) => {
+                const li = document.createElement('li');
+                li.className = `page-item ${disabled ? 'disabled' : ''} ${active ? 'active' : ''}`.trim();
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'page-link';
+                button.innerHTML = label;
+                if (!disabled && !active) {
+                    button.addEventListener('click', () => loadBooks(page));
+                }
+                li.appendChild(button);
+                return li;
+            };
+
+            pagination.appendChild(createItem(currentPage - 1, '&laquo;', currentPage === 1));
+
+            const windowSize = 5;
+            let start = Math.max(1, currentPage - 2);
+            let end = Math.min(totalPages, start + windowSize - 1);
+            start = Math.max(1, end - windowSize + 1);
+
+            for (let page = start; page <= end; page++) {
+                pagination.appendChild(createItem(page, page.toString(), false, page === currentPage));
+            }
+
+            pagination.appendChild(createItem(currentPage + 1, '&raquo;', currentPage === totalPages));
+        }
+
+        function displayBooks(books) {
+            const container = document.getElementById('booksContainer');
+            container.innerHTML = '';
+
+            if (books.length === 0) {
+                container.innerHTML = '<div class="col-12"><p>Книги не найдены</p></div>';
+                return;
+            }
+
+            books.forEach(book => {
+                const authorNames = (book.authorNames && book.authorNames.length
+                    ? book.authorNames
+                    : (book.authorIds || []).map(id => authorsMap.get(id)).filter(Boolean));
+
+                const genreNames = (book.genreNames && book.genreNames.length
+                    ? book.genreNames
+                    : (book.genreIds || []).map(id => genresMap.get(id)).filter(Boolean));
+
+                const card = document.createElement('div');
+                card.className = 'col-md-4 mb-3';
+                card.innerHTML = `
+                    <div class="card h-100">
+                        ${book.coverImagePath ? `<img src="/images/${book.coverImagePath}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="Обложка">` : ''}
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">${book.title}</h5>
+                            <p class="card-text mb-1"><strong>Авторы:</strong> ${authorNames.length ? authorNames.join(', ') : 'Не указаны'}</p>
+                            <p class="card-text mb-1"><strong>Жанры:</strong> ${genreNames.length ? genreNames.join(', ') : 'Не указаны'}</p>
+                            <p class="card-text mb-1">ISBN: ${book.isbn}</p>
+                            <p class="card-text mb-3">Доступно: ${book.availableCopies}</p>
+                            <div class="mt-auto d-flex gap-2 flex-wrap">
+                                <a href="/books/${book.bookId}" class="btn btn-primary btn-sm">Подробнее</a>
+                                ${role === 'admin' ? `<a href="/admin/books/edit/${book.bookId}" class="btn btn-outline-secondary btn-sm">Редактировать</a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadBooks(1);
+            }
+        });
+
+        document.getElementById('genreFilter').addEventListener('change', () => loadBooks(1));
+        document.getElementById('authorFilter').addEventListener('change', () => loadBooks(1));
+
+        loadAuthors();
+        loadGenres();
+        loadBooks();
+    </script>
+}
+

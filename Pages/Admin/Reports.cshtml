@@ -1,0 +1,78 @@
+@page
+@model LibraryManagement.Pages.Admin.ReportsModel
+@{
+    ViewData["Title"] = "Отчёты";
+}
+
+<h2>Генерация отчётов</h2>
+
+<form id="reportForm">
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label for="fromDate" class="form-label">С даты</label>
+            <input type="date" class="form-control" id="fromDate" required>
+        </div>
+        <div class="col-md-4">
+            <label for="toDate" class="form-label">По дату</label>
+            <input type="date" class="form-control" id="toDate" required>
+        </div>
+    </div>
+    <div class="mb-3">
+        <button type="button" class="btn btn-primary" onclick="generateReport('pdf')">Сгенерировать PDF</button>
+        <button type="button" class="btn btn-success" onclick="generateReport('excel')">Сгенерировать Excel</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        }
+
+        // Устанавливаем значения по умолчанию (последний месяц)
+        const today = new Date();
+        const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+        document.getElementById('toDate').value = today.toISOString().split('T')[0];
+        document.getElementById('fromDate').value = lastMonth.toISOString().split('T')[0];
+
+        async function generateReport(format) {
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+
+            if (!fromDate || !toDate) {
+                alert('Выберите даты');
+                return;
+            }
+
+            try {
+                const endpoint = format === 'pdf' ? 'pdf' : 'excel';
+                const response = await fetch(`/api/reports/${endpoint}?fromDate=${fromDate}&toDate=${toDate}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `report_${fromDate}_${toDate}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    alert('Ошибка при генерации отчёта');
+                }
+            } catch (error) {
+                alert('Ошибка соединения');
+            }
+        }
+    </script>
+}
+

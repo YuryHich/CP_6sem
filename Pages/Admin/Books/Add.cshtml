@@ -1,0 +1,435 @@
+@page
+@model LibraryManagement.Pages.Admin.Books.AddModel
+@{
+    ViewData["Title"] = "Добавить книгу";
+}
+
+<h2>Добавить книгу</h2>
+
+<form id="bookForm">
+    <div class="mb-3">
+        <label for="isbn" class="form-label">ISBN</label>
+        <input type="text" class="form-control" id="isbn" required maxlength="13">
+    </div>
+    <div class="mb-3">
+        <label for="title" class="form-label">Название</label>
+        <input type="text" class="form-control" id="title" required maxlength="200">
+    </div>
+    <div class="mb-3">
+        <label for="description" class="form-label">Описание</label>
+        <textarea class="form-control" id="description" rows="3"></textarea>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label for="publicationYear" class="form-label">Год издания</label>
+            <input type="number" class="form-control" id="publicationYear" min="1" max="2100">
+        </div>
+        <div class="col-md-4">
+            <label for="publisher" class="form-label d-flex justify-content-between align-items-center">
+                <span>Издательство</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="openAddModal('publisher')">+ Добавить</button>
+            </label>
+            <div class="d-flex gap-2">
+                <select class="form-select flex-grow-1" id="publisher">
+                    <option value="">Не выбрано</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <label for="language" class="form-label d-flex justify-content-between align-items-center">
+                <span>Язык</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="openAddModal('language')">+ Добавить</button>
+            </label>
+            <div class="d-flex gap-2">
+                <select class="form-select flex-grow-1" id="language">
+                    <option value="">Не выбран</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mt-1">
+        <div class="col-md-6">
+            <label for="series" class="form-label d-flex justify-content-between align-items-center">
+                <span>Серия</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="openAddModal('series')">+ Добавить</button>
+            </label>
+            <div class="d-flex gap-2">
+                <select class="form-select flex-grow-1" id="series">
+                    <option value="">Не выбрана</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <label for="copiesCount" class="form-label">Количество копий</label>
+            <input type="number" class="form-control" id="copiesCount" min="1" value="1" required>
+        </div>
+    </div>
+    <div class="row g-3 mt-1">
+        <div class="col-md-6">
+            <label for="authors" class="form-label d-flex justify-content-between align-items-center">
+                <span>Авторы (можно выбрать несколько)</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="openAddModal('author')">+ Добавить</button>
+            </label>
+            <div class="d-flex gap-2">
+                <select class="form-select flex-grow-1" id="authors" multiple size="5">
+                    <!-- Авторы будут загружены через JS -->
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <label for="genres" class="form-label d-flex justify-content-between align-items-center">
+                <span>Жанры (можно выбрать несколько)</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="openAddModal('genre')">+ Добавить</button>
+            </label>
+            <div class="d-flex gap-2">
+                <select class="form-select flex-grow-1" id="genres" multiple size="5">
+                    <!-- Жанры будут загружены через JS -->
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="mb-3 mt-3">
+        <label for="image" class="form-label">Обложка</label>
+        <input type="file" class="form-control" id="image" accept="image/jpeg,image/png">
+    </div>
+    <div id="errorMessage" class="alert alert-danger d-none"></div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+    <a href="/books" class="btn btn-secondary">Отмена</a>
+</form>
+
+<div class="modal fade" id="addLookupModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Добавить значение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="lookupModalBody">
+                <!-- Поля будут подставлены динамически -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveNewLookup()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        const errorBox = document.getElementById('errorMessage');
+        const lookupModalElement = document.getElementById('addLookupModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('lookupModalBody');
+        const lookupModal = lookupModalElement ? new bootstrap.Modal(lookupModalElement) : null;
+        let currentLookupType = '';
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        }
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove('d-none');
+        }
+        
+        function hideError() {
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+        }
+
+        async function fetchJson(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Ошибка загрузки данных с ${url}`);
+            }
+            return response.json();
+        }
+
+        function populateSelect(selectId, items, mapFn) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            items.forEach(item => {
+                const { value, label } = mapFn(item);
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadLookups() {
+            try {
+                const [authors, genres, publishers, languages, series] = await Promise.all([
+                    fetchJson('/api/authors'),
+                    fetchJson('/api/genres'),
+                    fetchJson('/api/publishers'),
+                    fetchJson('/api/languages'),
+                    fetchJson('/api/series')
+                ]);
+
+                populateSelect('authors', authors, author => ({
+                    value: author.authorId,
+                    label: `${author.firstName} ${author.lastName}`.trim()
+                }));
+
+                populateSelect('genres', genres, genre => ({
+                    value: genre.genreId,
+                    label: genre.genreName
+                }));
+
+                populateSelect('publisher', publishers, publisher => ({
+                    value: publisher.publisherId,
+                    label: publisher.publisherName
+                }));
+
+                populateSelect('language', languages, language => ({
+                    value: language.languageId,
+                    label: language.languageName
+                }));
+
+                populateSelect('series', series, item => ({
+                    value: item.seriesId,
+                    label: item.seriesName
+                }));
+            } catch (error) {
+                console.error('Ошибка загрузки справочников:', error);
+                showError('Не удалось загрузить справочные данные. Обновите страницу и попробуйте снова.');
+            }
+        }
+
+        document.getElementById('bookForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideError();
+            
+            const isbn = document.getElementById('isbn').value;
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const publicationYear = document.getElementById('publicationYear').value;
+            const authorIds = Array.from(document.getElementById('authors').selectedOptions).map(opt => opt.value);
+            const genreIds = Array.from(document.getElementById('genres').selectedOptions).map(opt => opt.value);
+            const publisherId = document.getElementById('publisher').value || null;
+            const languageId = document.getElementById('language').value || null;
+            const seriesId = document.getElementById('series').value || null;
+            const copiesCountValue = parseInt(document.getElementById('copiesCount').value, 10);
+            const copiesCount = Number.isFinite(copiesCountValue) && copiesCountValue > 0 ? copiesCountValue : 1;
+            const imageFile = document.getElementById('image').files[0];
+            
+            const bookData = {
+                isbn,
+                title,
+                description,
+                publicationYear: publicationYear ? parseInt(publicationYear) : null,
+                authorIds,
+                genreIds,
+                publisherId,
+                languageId,
+                seriesId,
+                copiesCount
+            };
+
+            try {
+                const response = await fetch('/api/books', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(bookData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка при добавлении книги');
+                }
+
+                const result = await response.json();
+                const bookId = result.id;
+
+                if (imageFile) {
+                    const formData = new FormData();
+                    formData.append('file', imageFile);
+                    
+                    await fetch(`/api/books/${bookId}/image`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                }
+
+                alert('Книга успешно добавлена');
+                window.location.href = `/books/${bookId}`;
+            } catch (error) {
+                showError(error.message || 'Ошибка соединения');
+            }
+        });
+
+        const lookupConfig = {
+            author: {
+                title: 'Добавить автора',
+                selectId: 'authors',
+                endpoint: '/api/authors',
+                isMulti: true,
+                renderFields: () => `
+                    <div class="mb-3">
+                        <label class="form-label">Имя</label>
+                        <input type="text" class="form-control" id="newFirstName" placeholder="Имя автора">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Фамилия</label>
+                        <input type="text" class="form-control" id="newLastName" placeholder="Фамилия автора">
+                    </div>
+                `,
+                buildPayload: () => {
+                    const firstName = document.getElementById('newFirstName')?.value.trim();
+                    const lastName = document.getElementById('newLastName')?.value.trim();
+                    if (!firstName || !lastName) {
+                        throw new Error('Укажите имя и фамилию автора');
+                    }
+                    return { payload: { firstName, lastName }, label: `${firstName} ${lastName}`.trim() };
+                },
+                extractId: data => data.authorId || data.id
+            },
+            genre: {
+                title: 'Добавить жанр',
+                selectId: 'genres',
+                endpoint: '/api/genres',
+                isMulti: true,
+                renderFields: () => `
+                    <label class="form-label">Название жанра</label>
+                    <input type="text" class="form-control" id="newName" placeholder="Например, Фэнтези">
+                `,
+                buildPayload: () => {
+                    const name = document.getElementById('newName')?.value.trim();
+                    if (!name) {
+                        throw new Error('Введите название жанра');
+                    }
+                    return { payload: { genreName: name }, label: name };
+                },
+                extractId: data => data.genreId || data.id
+            },
+            publisher: {
+                title: 'Добавить издательство',
+                selectId: 'publisher',
+                endpoint: '/api/publishers',
+                isMulti: false,
+                renderFields: () => `
+                    <label class="form-label">Название издательства</label>
+                    <input type="text" class="form-control" id="newName" placeholder="Название издательства">
+                `,
+                buildPayload: () => {
+                    const name = document.getElementById('newName')?.value.trim();
+                    if (!name) {
+                        throw new Error('Введите название издательства');
+                    }
+                    return { payload: { publisherName: name }, label: name };
+                },
+                extractId: data => data.publisherId || data.id
+            },
+            language: {
+                title: 'Добавить язык',
+                selectId: 'language',
+                endpoint: '/api/languages',
+                isMulti: false,
+                renderFields: () => `
+                    <label class="form-label">Название языка</label>
+                    <input type="text" class="form-control" id="newName" placeholder="Например, Испанский">
+                `,
+                buildPayload: () => {
+                    const name = document.getElementById('newName')?.value.trim();
+                    if (!name) {
+                        throw new Error('Введите название языка');
+                    }
+                    return { payload: { languageName: name }, label: name };
+                },
+                extractId: data => data.languageId || data.id
+            },
+            series: {
+                title: 'Добавить серию',
+                selectId: 'series',
+                endpoint: '/api/series',
+                isMulti: false,
+                renderFields: () => `
+                    <label class="form-label">Название серии</label>
+                    <input type="text" class="form-control" id="newName" placeholder="Название серии">
+                `,
+                buildPayload: () => {
+                    const name = document.getElementById('newName')?.value.trim();
+                    if (!name) {
+                        throw new Error('Введите название серии');
+                    }
+                    return { payload: { seriesName: name }, label: name };
+                },
+                extractId: data => data.seriesId || data.id
+            }
+        };
+
+        function addOption(selectId, value, label, multiple) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            select.appendChild(option);
+            if (multiple) {
+                option.selected = true;
+            } else {
+                select.value = value;
+            }
+        }
+
+        function openAddModal(type) {
+            currentLookupType = type;
+            const config = lookupConfig[type];
+            if (!config || !lookupModal) {
+                return;
+            }
+            modalTitle.textContent = config.title;
+            modalBody.innerHTML = config.renderFields();
+            lookupModal.show();
+        }
+
+        async function saveNewLookup() {
+            if (!currentLookupType) {
+                return;
+            }
+            const config = lookupConfig[currentLookupType];
+            if (!config) {
+                return;
+            }
+
+            try {
+                const { payload, label } = config.buildPayload();
+                const response = await fetch(config.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.error || 'Не удалось добавить значение');
+                }
+
+                const data = await response.json();
+                const newId = config.extractId(data);
+                addOption(config.selectId, newId, label, config.isMulti);
+                lookupModal.hide();
+                alert('Успешно добавлено');
+            } catch (error) {
+                showError(error.message || 'Не удалось сохранить значение');
+            }
+        }
+
+        loadLookups();
+    </script>
+}
+
