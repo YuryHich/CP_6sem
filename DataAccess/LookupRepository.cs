@@ -33,6 +33,41 @@ public class LookupRepository
         return genres;
     }
 
+    public async Task UpdateGenreAsync(Guid genreId, GenreDTO genre)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        const string sql = "UPDATE Genres SET genre_name = @genreName WHERE genre_id = @genreId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@genreId", genreId);
+        cmd.Parameters.AddWithValue("@genreName", genre.GenreName);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> DeleteGenreAsync(Guid genreId)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        // Проверяем, используется ли жанр книгами
+        const string checkSql = "SELECT COUNT(*) FROM BookGenres WHERE genre_id = @genreId";
+        using var checkCmd = new NpgsqlCommand(checkSql, conn);
+        checkCmd.Parameters.AddWithValue("@genreId", genreId);
+        var count = Convert.ToInt64(await checkCmd.ExecuteScalarAsync());
+        if (count > 0)
+        {
+            return false;
+        }
+
+        const string sql = "DELETE FROM Genres WHERE genre_id = @genreId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@genreId", genreId);
+        await cmd.ExecuteNonQueryAsync();
+
+        return true;
+    }
+
     public async Task<List<PublisherDTO>> GetPublishersAsync()
     {
         var publishers = new List<PublisherDTO>();
@@ -55,6 +90,42 @@ public class LookupRepository
         return publishers;
     }
 
+    public async Task UpdatePublisherAsync(Guid publisherId, PublisherDTO publisher)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        const string sql = "UPDATE Publishers SET publisher_name = @publisherName, country = @country WHERE publisher_id = @publisherId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@publisherId", publisherId);
+        cmd.Parameters.AddWithValue("@publisherName", publisher.PublisherName);
+        cmd.Parameters.AddWithValue("@country", (object?)publisher.Country ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> DeletePublisherAsync(Guid publisherId)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        // Проверяем, используется ли издательство книгами
+        const string checkSql = "SELECT COUNT(*) FROM Books WHERE publisher_id = @publisherId";
+        using var checkCmd = new NpgsqlCommand(checkSql, conn);
+        checkCmd.Parameters.AddWithValue("@publisherId", publisherId);
+        var count = Convert.ToInt64(await checkCmd.ExecuteScalarAsync());
+        if (count > 0)
+        {
+            return false;
+        }
+
+        const string sql = "DELETE FROM Publishers WHERE publisher_id = @publisherId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@publisherId", publisherId);
+        await cmd.ExecuteNonQueryAsync();
+
+        return true;
+    }
+
     public async Task<List<LanguageDTO>> GetLanguagesAsync()
     {
         var languages = new List<LanguageDTO>();
@@ -74,6 +145,41 @@ public class LookupRepository
         }
 
         return languages;
+    }
+
+    public async Task UpdateLanguageAsync(Guid languageId, LanguageDTO language)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        const string sql = "UPDATE Languages SET language_name = @languageName WHERE language_id = @languageId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@languageId", languageId);
+        cmd.Parameters.AddWithValue("@languageName", language.LanguageName);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> DeleteLanguageAsync(Guid languageId)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        // Проверяем, используется ли язык книгами
+        const string checkSql = "SELECT COUNT(*) FROM Books WHERE language_id = @languageId";
+        using var checkCmd = new NpgsqlCommand(checkSql, conn);
+        checkCmd.Parameters.AddWithValue("@languageId", languageId);
+        var count = Convert.ToInt64(await checkCmd.ExecuteScalarAsync());
+        if (count > 0)
+        {
+            return false;
+        }
+
+        const string sql = "DELETE FROM Languages WHERE language_id = @languageId";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@languageId", languageId);
+        await cmd.ExecuteNonQueryAsync();
+
+        return true;
     }
 
     public async Task<List<SeriesDTO>> GetSeriesAsync()

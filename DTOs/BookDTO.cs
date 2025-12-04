@@ -39,5 +39,8 @@ public class BookDTO
     public int CopiesCount { get; set; } = 1;
     
     public List<BranchAvailabilityDTO> BranchAvailability { get; set; } = new();
+
+    // Используется только при редактировании книги для добавления новых экземпляров
+    public int AddCopies { get; set; } = 0;
 }
 

@@ -1,0 +1,744 @@
+@page
+@model LibraryManagement.Pages.Admin.LookupsModel
+@{
+    ViewData["Title"] = "Справочники";
+}
+
+<h2>Справочники</h2>
+
+<div class="alert alert-danger d-none" id="lookupError"></div>
+<div class="alert alert-success d-none" id="lookupSuccess"></div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Авторы
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-striped" id="authorsTable">
+                    <thead>
+                        <tr>
+                            <th>Фамилия</th>
+                            <th>Имя</th>
+                            <th>Страна</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <form id="authorForm" class="mt-3">
+                    <input type="hidden" id="authorId" />
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label for="authorLastName" class="form-label">Фамилия *</label>
+                            <input type="text" class="form-control" id="authorLastName" maxlength="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="authorFirstName" class="form-label">Имя *</label>
+                            <input type="text" class="form-control" id="authorFirstName" maxlength="50">
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <label for="authorCountry" class="form-label">Страна</label>
+                            <input type="text" class="form-control" id="authorCountry" maxlength="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="authorBirthDate" class="form-label">Дата рождения</label>
+                            <input type="date" class="form-control" id="authorBirthDate">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label for="authorBiography" class="form-label">Биография</label>
+                        <textarea class="form-control" id="authorBiography" rows="2"></textarea>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="authorAddBtn">Добавить</button>
+                        <button type="button" class="btn btn-success btn-sm" id="authorSaveBtn" disabled>Сохранить изменения</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="authorDeleteBtn" disabled>Удалить</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="authorClearBtn">Очистить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Жанры
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-striped" id="genresTable">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <form id="genreForm" class="mt-3">
+                    <input type="hidden" id="genreId" />
+                    <div class="mb-2">
+                        <label for="genreName" class="form-label">Название *</label>
+                        <input type="text" class="form-control" id="genreName">
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="genreAddBtn">Добавить</button>
+                        <button type="button" class="btn btn-success btn-sm" id="genreSaveBtn" disabled>Сохранить изменения</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="genreDeleteBtn" disabled>Удалить</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="genreClearBtn">Очистить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Издательства
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-striped" id="publishersTable">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Страна</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <form id="publisherForm" class="mt-3">
+                    <input type="hidden" id="publisherId" />
+                    <div class="mb-2">
+                        <label for="publisherName" class="form-label">Название *</label>
+                        <input type="text" class="form-control" id="publisherName">
+                    </div>
+                    <div class="mb-2">
+                        <label for="publisherCountry" class="form-label">Страна</label>
+                        <input type="text" class="form-control" id="publisherCountry">
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="publisherAddBtn">Добавить</button>
+                        <button type="button" class="btn btn-success btn-sm" id="publisherSaveBtn" disabled>Сохранить изменения</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="publisherDeleteBtn" disabled>Удалить</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="publisherClearBtn">Очистить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Языки
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-striped" id="languagesTable">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <form id="languageForm" class="mt-3">
+                    <input type="hidden" id="languageId" />
+                    <div class="mb-2">
+                        <label for="languageName" class="form-label">Название *</label>
+                        <input type="text" class="form-control" id="languageName">
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="languageAddBtn">Добавить</button>
+                        <button type="button" class="btn btn-success btn-sm" id="languageSaveBtn" disabled>Сохранить изменения</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="languageDeleteBtn" disabled>Удалить</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="languageClearBtn">Очистить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        } else {
+            document.getElementById('lookupsNav').style.display = 'block';
+        }
+
+        const lookupError = document.getElementById('lookupError');
+        const lookupSuccess = document.getElementById('lookupSuccess');
+
+        function showError(message) {
+            lookupError.textContent = message;
+            lookupError.classList.remove('d-none');
+            lookupSuccess.classList.add('d-none');
+        }
+
+        function showSuccess(message) {
+            lookupSuccess.textContent = message;
+            lookupSuccess.classList.remove('d-none');
+            lookupError.classList.add('d-none');
+        }
+
+        function clearMessages() {
+            lookupError.classList.add('d-none');
+            lookupSuccess.classList.add('d-none');
+        }
+
+        async function fetchJson(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        ...(options.headers || {})
+                    }
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => null);
+                    const msg = data?.error || 'Ошибка при выполнении запроса';
+                    throw new Error(msg);
+                }
+
+                if (response.status === 204) {
+                    return null;
+                }
+
+                return await response.json();
+            } catch (e) {
+                showError(e.message || 'Ошибка соединения с сервером');
+                throw e;
+            }
+        }
+
+        // Авторы
+        let authors = [];
+
+        async function loadAuthors() {
+            clearMessages();
+            const data = await fetchJson('/api/authors');
+            authors = data || [];
+            const tbody = document.querySelector('#authorsTable tbody');
+            tbody.innerHTML = '';
+            authors.forEach(a => {
+                const tr = document.createElement('tr');
+                tr.dataset.id = a.authorId;
+                tr.innerHTML = `<td>${a.lastName}</td><td>${a.firstName}</td><td>${a.country || ''}</td>`;
+                tr.addEventListener('click', () => selectAuthor(a));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetAuthorForm() {
+            document.getElementById('authorForm').reset();
+            document.getElementById('authorId').value = '';
+            document.getElementById('authorSaveBtn').disabled = true;
+            document.getElementById('authorDeleteBtn').disabled = true;
+        }
+
+        function selectAuthor(author) {
+            clearMessages();
+            document.getElementById('authorId').value = author.authorId;
+            document.getElementById('authorLastName').value = author.lastName;
+            document.getElementById('authorFirstName').value = author.firstName;
+            document.getElementById('authorCountry').value = author.country || '';
+            document.getElementById('authorBirthDate').value = author.dateOfBirth ? author.dateOfBirth.substring(0, 10) : '';
+            document.getElementById('authorBiography').value = author.biography || '';
+            document.getElementById('authorSaveBtn').disabled = false;
+            document.getElementById('authorDeleteBtn').disabled = false;
+        }
+
+        function validateAuthor() {
+            const lastName = document.getElementById('authorLastName').value.trim();
+            const firstName = document.getElementById('authorFirstName').value.trim();
+            if (!lastName || !firstName) {
+                showError('Имя и фамилия автора обязательны');
+                return false;
+            }
+            // простая проверка уникальности по имени/фамилии на UI
+            const currentId = document.getElementById('authorId').value;
+            const exists = authors.some(a =>
+                a.firstName.toLowerCase() === firstName.toLowerCase() &&
+                a.lastName.toLowerCase() === lastName.toLowerCase() &&
+                (!currentId || a.authorId !== currentId));
+            if (exists) {
+                showError('Автор с таким именем и фамилией уже существует');
+                return false;
+            }
+            return true;
+        }
+
+        async function addAuthor() {
+            clearMessages();
+            if (!validateAuthor()) return;
+
+            const payload = {
+                firstName: document.getElementById('authorFirstName').value.trim(),
+                lastName: document.getElementById('authorLastName').value.trim(),
+                country: document.getElementById('authorCountry').value.trim() || null,
+                biography: document.getElementById('authorBiography').value.trim() || null,
+                dateOfBirth: document.getElementById('authorBirthDate').value || null
+            };
+
+            try {
+                await fetchJson('/api/authors', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Автор успешно добавлен');
+                resetAuthorForm();
+                await loadAuthors();
+            } catch { }
+        }
+
+        async function saveAuthor() {
+            clearMessages();
+            const id = document.getElementById('authorId').value;
+            if (!id) {
+                showError('Не выбран автор для редактирования');
+                return;
+            }
+            if (!validateAuthor()) return;
+
+            const payload = {
+                authorId: id,
+                firstName: document.getElementById('authorFirstName').value.trim(),
+                lastName: document.getElementById('authorLastName').value.trim(),
+                country: document.getElementById('authorCountry').value.trim() || null,
+                biography: document.getElementById('authorBiography').value.trim() || null,
+                dateOfBirth: document.getElementById('authorBirthDate').value || null
+            };
+
+            try {
+                await fetchJson(`/api/authors/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Изменения автора сохранены');
+                await loadAuthors();
+            } catch { }
+        }
+
+        async function deleteAuthor() {
+            clearMessages();
+            const id = document.getElementById('authorId').value;
+            if (!id) {
+                showError('Не выбран автор для удаления');
+                return;
+            }
+            if (!confirm('Вы действительно хотите удалить автора?')) {
+                return;
+            }
+            try {
+                await fetchJson(`/api/authors/${id}`, {
+                    method: 'DELETE'
+                });
+                showSuccess('Автор удалён');
+                resetAuthorForm();
+                await loadAuthors();
+            } catch { }
+        }
+
+        document.getElementById('authorAddBtn').addEventListener('click', addAuthor);
+        document.getElementById('authorSaveBtn').addEventListener('click', saveAuthor);
+        document.getElementById('authorDeleteBtn').addEventListener('click', deleteAuthor);
+        document.getElementById('authorClearBtn').addEventListener('click', () => {
+            clearMessages();
+            resetAuthorForm();
+        });
+
+        // Жанры
+        let genres = [];
+
+        async function loadGenres() {
+            clearMessages();
+            const data = await fetchJson('/api/genres');
+            genres = data || [];
+            const tbody = document.querySelector('#genresTable tbody');
+            tbody.innerHTML = '';
+            genres.forEach(g => {
+                const tr = document.createElement('tr');
+                tr.dataset.id = g.genreId;
+                tr.innerHTML = `<td>${g.genreName}</td>`;
+                tr.addEventListener('click', () => selectGenre(g));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetGenreForm() {
+            document.getElementById('genreForm').reset();
+            document.getElementById('genreId').value = '';
+            document.getElementById('genreSaveBtn').disabled = true;
+            document.getElementById('genreDeleteBtn').disabled = true;
+        }
+
+        function selectGenre(genre) {
+            clearMessages();
+            document.getElementById('genreId').value = genre.genreId;
+            document.getElementById('genreName').value = genre.genreName;
+            document.getElementById('genreSaveBtn').disabled = false;
+            document.getElementById('genreDeleteBtn').disabled = false;
+        }
+
+        function validateGenre() {
+            const name = document.getElementById('genreName').value.trim();
+            if (!name) {
+                showError('Название жанра обязательно');
+                return false;
+            }
+            const currentId = document.getElementById('genreId').value;
+            const exists = genres.some(g =>
+                g.genreName.toLowerCase() === name.toLowerCase() &&
+                (!currentId || g.genreId !== currentId));
+            if (exists) {
+                showError('Жанр с таким названием уже существует');
+                return false;
+            }
+            return true;
+        }
+
+        async function addGenre() {
+            clearMessages();
+            if (!validateGenre()) return;
+
+            const payload = {
+                genreName: document.getElementById('genreName').value.trim()
+            };
+
+            try {
+                await fetchJson('/api/genres', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Жанр добавлен');
+                resetGenreForm();
+                await loadGenres();
+            } catch { }
+        }
+
+        async function saveGenre() {
+            clearMessages();
+            const id = document.getElementById('genreId').value;
+            if (!id) {
+                showError('Не выбран жанр для редактирования');
+                return;
+            }
+            if (!validateGenre()) return;
+
+            const payload = {
+                genreId: id,
+                genreName: document.getElementById('genreName').value.trim()
+            };
+
+            try {
+                await fetchJson(`/api/genres/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Жанр обновлён');
+                await loadGenres();
+            } catch { }
+        }
+
+        async function deleteGenre() {
+            clearMessages();
+            const id = document.getElementById('genreId').value;
+            if (!id) {
+                showError('Не выбран жанр для удаления');
+                return;
+            }
+            if (!confirm('Вы действительно хотите удалить жанр?')) {
+                return;
+            }
+            try {
+                await fetchJson(`/api/genres/${id}`, {
+                    method: 'DELETE'
+                });
+                showSuccess('Жанр удалён');
+                resetGenreForm();
+                await loadGenres();
+            } catch { }
+        }
+
+        document.getElementById('genreAddBtn').addEventListener('click', addGenre);
+        document.getElementById('genreSaveBtn').addEventListener('click', saveGenre);
+        document.getElementById('genreDeleteBtn').addEventListener('click', deleteGenre);
+        document.getElementById('genreClearBtn').addEventListener('click', () => {
+            clearMessages();
+            resetGenreForm();
+        });
+
+        // Издательства
+        let publishers = [];
+
+        async function loadPublishers() {
+            clearMessages();
+            const data = await fetchJson('/api/publishers');
+            publishers = data || [];
+            const tbody = document.querySelector('#publishersTable tbody');
+            tbody.innerHTML = '';
+            publishers.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.dataset.id = p.publisherId;
+                tr.innerHTML = `<td>${p.publisherName}</td><td>${p.country || ''}</td>`;
+                tr.addEventListener('click', () => selectPublisher(p));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetPublisherForm() {
+            document.getElementById('publisherForm').reset();
+            document.getElementById('publisherId').value = '';
+            document.getElementById('publisherSaveBtn').disabled = true;
+            document.getElementById('publisherDeleteBtn').disabled = true;
+        }
+
+        function selectPublisher(publisher) {
+            clearMessages();
+            document.getElementById('publisherId').value = publisher.publisherId;
+            document.getElementById('publisherName').value = publisher.publisherName;
+            document.getElementById('publisherCountry').value = publisher.country || '';
+            document.getElementById('publisherSaveBtn').disabled = false;
+            document.getElementById('publisherDeleteBtn').disabled = false;
+        }
+
+        function validatePublisher() {
+            const name = document.getElementById('publisherName').value.trim();
+            if (!name) {
+                showError('Название издательства обязательно');
+                return false;
+            }
+            const currentId = document.getElementById('publisherId').value;
+            const exists = publishers.some(p =>
+                p.publisherName.toLowerCase() === name.toLowerCase() &&
+                (!currentId || p.publisherId !== currentId));
+            if (exists) {
+                showError('Издательство с таким названием уже существует');
+                return false;
+            }
+            return true;
+        }
+
+        async function addPublisher() {
+            clearMessages();
+            if (!validatePublisher()) return;
+
+            const payload = {
+                publisherName: document.getElementById('publisherName').value.trim(),
+                country: document.getElementById('publisherCountry').value.trim() || null
+            };
+
+            try {
+                await fetchJson('/api/publishers', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Издательство добавлено');
+                resetPublisherForm();
+                await loadPublishers();
+            } catch { }
+        }
+
+        async function savePublisher() {
+            clearMessages();
+            const id = document.getElementById('publisherId').value;
+            if (!id) {
+                showError('Не выбрано издательство для редактирования');
+                return;
+            }
+            if (!validatePublisher()) return;
+
+            const payload = {
+                publisherId: id,
+                publisherName: document.getElementById('publisherName').value.trim(),
+                country: document.getElementById('publisherCountry').value.trim() || null
+            };
+
+            try {
+                await fetchJson(`/api/publishers/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Издательство обновлено');
+                await loadPublishers();
+            } catch { }
+        }
+
+        async function deletePublisher() {
+            clearMessages();
+            const id = document.getElementById('publisherId').value;
+            if (!id) {
+                showError('Не выбрано издательство для удаления');
+                return;
+            }
+            if (!confirm('Вы действительно хотите удалить издательство?')) {
+                return;
+            }
+            try {
+                await fetchJson(`/api/publishers/${id}`, {
+                    method: 'DELETE'
+                });
+                showSuccess('Издательство удалено');
+                resetPublisherForm();
+                await loadPublishers();
+            } catch { }
+        }
+
+        document.getElementById('publisherAddBtn').addEventListener('click', addPublisher);
+        document.getElementById('publisherSaveBtn').addEventListener('click', savePublisher);
+        document.getElementById('publisherDeleteBtn').addEventListener('click', deletePublisher);
+        document.getElementById('publisherClearBtn').addEventListener('click', () => {
+            clearMessages();
+            resetPublisherForm();
+        });
+
+        // Языки
+        let languages = [];
+
+        async function loadLanguages() {
+            clearMessages();
+            const data = await fetchJson('/api/languages');
+            languages = data || [];
+            const tbody = document.querySelector('#languagesTable tbody');
+            tbody.innerHTML = '';
+            languages.forEach(l => {
+                const tr = document.createElement('tr');
+                tr.dataset.id = l.languageId;
+                tr.innerHTML = `<td>${l.languageName}</td>`;
+                tr.addEventListener('click', () => selectLanguage(l));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetLanguageForm() {
+            document.getElementById('languageForm').reset();
+            document.getElementById('languageId').value = '';
+            document.getElementById('languageSaveBtn').disabled = true;
+            document.getElementById('languageDeleteBtn').disabled = true;
+        }
+
+        function selectLanguage(language) {
+            clearMessages();
+            document.getElementById('languageId').value = language.languageId;
+            document.getElementById('languageName').value = language.languageName;
+            document.getElementById('languageSaveBtn').disabled = false;
+            document.getElementById('languageDeleteBtn').disabled = false;
+        }
+
+        function validateLanguage() {
+            const name = document.getElementById('languageName').value.trim();
+            if (!name) {
+                showError('Название языка обязательно');
+                return false;
+            }
+            const currentId = document.getElementById('languageId').value;
+            const exists = languages.some(l =>
+                l.languageName.toLowerCase() === name.toLowerCase() &&
+                (!currentId || l.languageId !== currentId));
+            if (exists) {
+                showError('Язык с таким названием уже существует');
+                return false;
+            }
+            return true;
+        }
+
+        async function addLanguage() {
+            clearMessages();
+            if (!validateLanguage()) return;
+
+            const payload = {
+                languageName: document.getElementById('languageName').value.trim()
+            };
+
+            try {
+                await fetchJson('/api/languages', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Язык добавлен');
+                resetLanguageForm();
+                await loadLanguages();
+            } catch { }
+        }
+
+        async function saveLanguage() {
+            clearMessages();
+            const id = document.getElementById('languageId').value;
+            if (!id) {
+                showError('Не выбран язык для редактирования');
+                return;
+            }
+            if (!validateLanguage()) return;
+
+            const payload = {
+                languageId: id,
+                languageName: document.getElementById('languageName').value.trim()
+            };
+
+            try {
+                await fetchJson(`/api/languages/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                showSuccess('Язык обновлён');
+                await loadLanguages();
+            } catch { }
+        }
+
+        async function deleteLanguage() {
+            clearMessages();
+            const id = document.getElementById('languageId').value;
+            if (!id) {
+                showError('Не выбран язык для удаления');
+                return;
+            }
+            if (!confirm('Вы действительно хотите удалить язык?')) {
+                return;
+            }
+            try {
+                await fetchJson(`/api/languages/${id}`, {
+                    method: 'DELETE'
+                });
+                showSuccess('Язык удалён');
+                resetLanguageForm();
+                await loadLanguages();
+            } catch { }
+        }
+
+        document.getElementById('languageAddBtn').addEventListener('click', addLanguage);
+        document.getElementById('languageSaveBtn').addEventListener('click', saveLanguage);
+        document.getElementById('languageDeleteBtn').addEventListener('click', deleteLanguage);
+        document.getElementById('languageClearBtn').addEventListener('click', () => {
+            clearMessages();
+            resetLanguageForm();
+        });
+
+        // Инициализация
+        (async function init() {
+            await Promise.all([
+                loadAuthors(),
+                loadGenres(),
+                loadPublishers(),
+                loadLanguages()
+            ]);
+        })();
+    </script>
+}
+
+

@@ -34,9 +34,19 @@ public class BookService : IBookService
         return await _repository.CreateBookAsync(book);
     }
 
-    public async Task UpdateBookAsync(Guid bookId, BookDTO book)
+    public async Task<int> UpdateBookAsync(Guid bookId, BookDTO book)
     {
         await _repository.UpdateBookAsync(bookId, book);
+
+        var addCopies = book.AddCopies;
+        if (addCopies <= 0)
+        {
+            return 0;
+        }
+
+        // Ограничиваем максимальное количество добавляемых экземпляров на уровне сервиса
+        var safeCount = Math.Clamp(addCopies, 1, 50);
+        return await _repository.AddCopiesAsync(bookId, safeCount);
     }
 
     public async Task DeleteBookAsync(Guid bookId)

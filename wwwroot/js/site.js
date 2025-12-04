@@ -11,7 +11,18 @@ function checkAuth() {
         
         if (role === 'admin') {
             document.getElementById('adminNav').style.display = 'block';
-            document.getElementById('reportsNav').style.display = 'block';
+            const reportsNav = document.getElementById('reportsNav');
+            if (reportsNav) {
+                reportsNav.style.display = 'block';
+            }
+            const lookupsNav = document.getElementById('lookupsNav');
+            if (lookupsNav) {
+                lookupsNav.style.display = 'block';
+            }
+            const historyNav = document.getElementById('historyNav');
+            if (historyNav) {
+                historyNav.style.display = 'block';
+            }
         }
     } else {
         document.getElementById('loginNav').style.display = 'block';
@@ -19,7 +30,18 @@ function checkAuth() {
         document.getElementById('logoutNav').style.display = 'none';
         document.getElementById('loansNav').style.display = 'none';
         document.getElementById('adminNav').style.display = 'none';
-        document.getElementById('reportsNav').style.display = 'none';
+        const reportsNav = document.getElementById('reportsNav');
+        if (reportsNav) {
+            reportsNav.style.display = 'none';
+        }
+        const lookupsNav = document.getElementById('lookupsNav');
+        if (lookupsNav) {
+            lookupsNav.style.display = 'none';
+        }
+        const historyNav = document.getElementById('historyNav');
+        if (historyNav) {
+            historyNav.style.display = 'none';
+        }
     }
 }
 
