@@ -8,6 +8,10 @@
     <!-- Детали книги будут загружены здесь -->
 </div>
 
+<div class="mt-4" id="reviewsSection">
+    <!-- Отзывы и рецензии будут загружены здесь -->
+</div>
+
 <!-- Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -32,6 +36,9 @@
         const bookId = '@RouteData.Values["id"]';
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('role');
+        const currentUserId = localStorage.getItem('userId');
+        const currentUsername = localStorage.getItem('username');
+        let selectedReviewId = null;
         let deleteModalInstance = null;
 
         async function loadBookDetails() {
@@ -47,6 +54,224 @@
             } catch (error) {
                 console.error('Ошибка загрузки книги:', error);
                 document.getElementById('bookDetails').innerHTML = '<div class="alert alert-danger">Не удалось загрузить книгу</div>';
+            }
+        }
+
+        function renderReviews(reviews) {
+            const container = document.getElementById('reviewsSection');
+            const isAdmin = role === 'admin';
+            const userId = currentUserId;
+
+            const userAlreadyReviewed = !!(token && userId && reviews.some(r => r.userId === userId));
+
+            const rowsHtml = reviews.length
+                ? reviews.map(r => {
+                    const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+                    const date = new Date(r.reviewDate).toLocaleString('ru-RU');
+                    const safeComment = r.comment ? r.comment : '';
+                    return `
+                        <tr data-review-id="${r.reviewId}">
+                            <td>${r.username}</td>
+                            <td><span class="text-warning">${stars}</span> (${r.rating})</td>
+                            <td>${safeComment}</td>
+                            <td>${date}</td>
+                        </tr>
+                    `;
+                }).join('')
+                : `
+                    <tr>
+                        <td colspan="4" class="text-muted text-center">Отзывов пока нет</td>
+                    </tr>
+                `;
+
+            const deleteButtonHtml = isAdmin
+                ? `
+                    <button type="button" id="deleteReviewBtn" class="btn btn-outline-danger btn-sm mt-2" style="display:none;">
+                        Удалить выбранный отзыв
+                    </button>
+                `
+                : '';
+
+            const reviewFormHtml = token
+                ? (userAlreadyReviewed
+                    ? `<div class="alert alert-info mt-3">Вы уже оставляли отзыв</div>`
+                    : `
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h6 class="card-title">Оставить отзыв</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label for="reviewRating" class="form-label">Оценка (1–5)</label>
+                                        <select id="reviewRating" class="form-select">
+                                            <option value="5">5</option>
+                                            <option value="4">4</option>
+                                            <option value="3">3</option>
+                                            <option value="2">2</option>
+                                            <option value="1">1</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-9">
+                                        <label for="reviewComment" class="form-label">Текст отзыва</label>
+                                        <textarea id="reviewComment" class="form-control" rows="3" maxlength="2000"></textarea>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" id="submitReviewBtn" class="btn btn-primary btn-sm">
+                                        Оставить отзыв
+                                    </button>
+                                </div>
+                                <div id="reviewError" class="alert alert-danger d-none mt-2"></div>
+                            </div>
+                        </div>
+                    `)
+                : `<div class="alert alert-secondary mt-3">Чтобы оставить отзыв, необходимо <a href="/auth/login">войти</a> в систему.</div>`;
+
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        Отзывы и рецензии
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0" id="reviewsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Пользователь</th>
+                                        <th>Оценка</th>
+                                        <th>Текст отзыва</th>
+                                        <th>Дата</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                        ${deleteButtonHtml}
+                        ${reviewFormHtml}
+                    </div>
+                </div>
+            `;
+
+            // Обработка выбора отзыва для удаления (только admin)
+            const tableRows = container.querySelectorAll('#reviewsTable tbody tr[data-review-id]');
+            const deleteBtn = document.getElementById('deleteReviewBtn');
+            selectedReviewId = null;
+            if (isAdmin && deleteBtn) {
+                tableRows.forEach(row => {
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => {
+                        tableRows.forEach(r => r.classList.remove('table-active'));
+                        row.classList.add('table-active');
+                        selectedReviewId = row.getAttribute('data-review-id');
+                        deleteBtn.style.display = 'inline-block';
+                    });
+                });
+
+                deleteBtn.addEventListener('click', async () => {
+                    if (!selectedReviewId) {
+                        alert('Выберите отзыв для удаления');
+                        return;
+                    }
+                    if (!confirm('Вы действительно хотите удалить выбранный отзыв?')) {
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/api/reviews/${selectedReviewId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => null);
+                            throw new Error(error?.error || 'Ошибка при удалении отзыва');
+                        }
+                        alert('Отзыв удалён');
+                        await loadReviews();
+                    } catch (e) {
+                        alert(e.message || 'Не удалось удалить отзыв');
+                    }
+                });
+            }
+
+            const submitBtn = document.getElementById('submitReviewBtn');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', submitReview);
+            }
+        }
+
+        async function loadReviews() {
+            const container = document.getElementById('reviewsSection');
+            try {
+                const response = await fetch(`/api/reviews/book/${bookId}`);
+                if (!response.ok) {
+                    container.innerHTML = '<div class="alert alert-danger">Не удалось загрузить отзывы</div>';
+                    return;
+                }
+                const reviews = await response.json();
+                renderReviews(reviews);
+            } catch (error) {
+                console.error('Ошибка загрузки отзывов:', error);
+                container.innerHTML = '<div class="alert alert-danger">Не удалось загрузить отзывы</div>';
+            }
+        }
+
+        async function submitReview() {
+            const ratingSelect = document.getElementById('reviewRating');
+            const commentInput = document.getElementById('reviewComment');
+            const errorBox = document.getElementById('reviewError');
+
+            if (!token) {
+                alert('Для отправки отзыва необходимо войти в систему');
+                window.location.href = '/auth/login';
+                return;
+            }
+
+            const rating = parseInt(ratingSelect.value, 10);
+            const comment = (commentInput.value || '').trim();
+
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+
+            if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+                errorBox.textContent = 'Оценка должна быть от 1 до 5';
+                errorBox.classList.remove('d-none');
+                return;
+            }
+            if (!comment) {
+                errorBox.textContent = 'Введите текст отзыва';
+                errorBox.classList.remove('d-none');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/reviews', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        bookId: bookId,
+                        rating: rating,
+                        comment: comment
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => null);
+                    const message = error?.error || 'Ошибка при отправке отзыва';
+                    errorBox.textContent = message;
+                    errorBox.classList.remove('d-none');
+                    return;
+                }
+
+                alert('Отзыв успешно сохранён');
+                await loadReviews();
+            } catch (e) {
+                errorBox.textContent = e.message || 'Ошибка соединения';
+                errorBox.classList.remove('d-none');
             }
         }
 
@@ -188,6 +413,7 @@
         }
 
         loadBookDetails();
+        loadReviews();
     </script>
 }
 

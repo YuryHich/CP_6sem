@@ -103,8 +103,8 @@ public class BooksController : ControllerBase
                 return BadRequest(ModelState);
             }
 
-            await _bookService.UpdateBookAsync(id, book);
-            return NoContent();
+            var addedCopies = await _bookService.UpdateBookAsync(id, book);
+            return Ok(new { addedCopies });
         }
         catch (Exception ex)
         {

@@ -348,6 +348,51 @@ public class BookRepository
         }
     }
 
+    public async Task<int> AddCopiesAsync(Guid bookId, int count)
+    {
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+        using var transaction = await conn.BeginTransactionAsync();
+
+        try
+        {
+            // Определяем основной филиал (первый в таблице Branches по имени)
+            const string branchSql = "SELECT branch_id FROM Branches ORDER BY branch_name LIMIT 1";
+            using var branchCmd = new NpgsqlCommand(branchSql, conn, transaction);
+            var branchIdObj = await branchCmd.ExecuteScalarAsync();
+            if (branchIdObj is not Guid branchId)
+            {
+                throw new InvalidOperationException("В системе не настроен ни один филиал (Branches).");
+            }
+
+            const string insertSql = @"
+                INSERT INTO BookCopies (book_id, branch_id, status)
+                VALUES (@bookId, @branchId, 'available')";
+
+            using var insertCmd = new NpgsqlCommand(insertSql, conn, transaction);
+            insertCmd.Parameters.AddWithValue("@bookId", bookId);
+            insertCmd.Parameters.AddWithValue("@branchId", branchId);
+
+            for (var i = 0; i < count; i++)
+            {
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            return count;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     public async Task DeleteBookAsync(Guid bookId)
     {
         using var conn = _db.GetConnection();

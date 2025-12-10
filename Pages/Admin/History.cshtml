@@ -1,0 +1,224 @@
+@page
+@model LibraryManagement.Pages.Admin.HistoryModel
+@{
+    ViewData["Title"] = "Журнал изменений";
+}
+
+<h2>Журнал изменений</h2>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="historyTable" class="form-label">Таблица истории</label>
+                <select id="historyTable" class="form-select">
+                    <option value="books">Изменения книг (BooksHistory)</option>
+                    <option value="loans">Изменения выдач (LoansHistory)</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="fromDate" class="form-label">С даты</label>
+                <input type="date" id="fromDate" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label for="toDate" class="form-label">По дату</label>
+                <input type="date" id="toDate" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Тип операции</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="Insert" id="opInsert" checked>
+                    <label class="form-check-label" for="opInsert">Insert</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="Update" id="opUpdate" checked>
+                    <label class="form-check-label" for="opUpdate">Update</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="Delete" id="opDelete" checked>
+                    <label class="form-check-label" for="opDelete">Delete</label>
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 align-items-end mt-2">
+            <div class="col-md-4">
+                <label for="usernameFilter" class="form-label">Пользователь</label>
+                <input list="usernameList" id="usernameFilter" class="form-control" placeholder="Имя пользователя" />
+                <datalist id="usernameList"></datalist>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary mt-3" id="refreshHistoryBtn">Обновить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="historyError" class="alert alert-danger d-none"></div>
+
+<div id="historyResults" class="table-responsive">
+    <!-- Результаты будут подставлены через JS -->
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        } else {
+            const historyNav = document.getElementById('historyNav');
+            if (historyNav) {
+                historyNav.style.display = 'block';
+            }
+        }
+
+        const errorBox = document.getElementById('historyError');
+        const resultsContainer = document.getElementById('historyResults');
+
+        function showHistoryError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove('d-none');
+        }
+
+        function clearHistoryError() {
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+        }
+
+        function formatJson(value) {
+            if (!value) {
+                return '';
+            }
+            try {
+                const obj = JSON.parse(value);
+                return `<pre class="mb-0"><code>${JSON.stringify(obj, null, 2)}</code></pre>`;
+            } catch {
+                return `<pre class="mb-0"><code>${value}</code></pre>`;
+            }
+        }
+
+        async function loadUsernames() {
+            try {
+                const response = await fetch('/api/history/usernames', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const usernames = await response.json();
+                const list = document.getElementById('usernameList');
+                list.innerHTML = '';
+                (usernames || []).forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    list.appendChild(option);
+                });
+            } catch {
+                // автоподсказка не критична, просто игнорируем ошибку
+            }
+        }
+
+        async function loadHistory() {
+            clearHistoryError();
+            resultsContainer.innerHTML = '<p class="text-muted">Загрузка...</p>';
+
+            const table = document.getElementById('historyTable').value;
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            const username = document.getElementById('usernameFilter').value.trim();
+
+            const ops = [];
+            if (document.getElementById('opInsert').checked) ops.push('Insert');
+            if (document.getElementById('opUpdate').checked) ops.push('Update');
+            if (document.getElementById('opDelete').checked) ops.push('Delete');
+
+            const params = new URLSearchParams();
+            if (fromDate) params.append('fromDate', fromDate);
+            if (toDate) params.append('toDate', toDate);
+            if (ops.length && ops.length < 3) {
+                params.append('operations', ops.join(','));
+            }
+            if (username) {
+                params.append('username', username);
+            }
+
+            const url = `/api/history/${table}?` + params.toString();
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => null);
+                    throw new Error(error?.error || 'Ошибка при загрузке журнала');
+                }
+
+                const data = await response.json();
+                renderHistory(data || []);
+            } catch (e) {
+                resultsContainer.innerHTML = '';
+                showHistoryError(e.message || 'Ошибка соединения');
+            }
+        }
+
+        function renderHistory(records) {
+            if (!records.length) {
+                resultsContainer.innerHTML = '<p class="text-muted">Записей не найдено</p>';
+                return;
+            }
+
+            let html = `
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Операция</th>
+                            <th>Пользователь</th>
+                            <th>Old value</th>
+                            <th>New value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            records.forEach(r => {
+                const date = new Date(r.operationDate).toLocaleString('ru-RU');
+                html += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${r.operationType}</td>
+                        <td>${r.username}</td>
+                        <td>${formatJson(r.oldValue)}</td>
+                        <td>${formatJson(r.newValue)}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            resultsContainer.innerHTML = html;
+        }
+
+        document.getElementById('refreshHistoryBtn').addEventListener('click', loadHistory);
+
+        // Устанавливаем значения дат по умолчанию (последний месяц)
+        (function initFilters() {
+            const today = new Date();
+            const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            document.getElementById('toDate').value = today.toISOString().split('T')[0];
+            document.getElementById('fromDate').value = lastMonth.toISOString().split('T')[0];
+        })();
+
+        (async function init() {
+            await loadUsernames();
+            await loadHistory();
+        })();
+    </script>
+}
+
+

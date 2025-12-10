@@ -15,12 +15,12 @@ CREATE TABLE Roles (
 -- Таблица Users
 CREATE TABLE Users (
     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL CHECK (char_length(username) >= 3),
+    email VARCHAR(100) UNIQUE NOT NULL CHECK (email ~* '^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$'),
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(50),
     last_name VARCHAR(50),
-    date_of_birth DATE,
+    date_of_birth DATE CHECK (date_of_birth < CURRENT_DATE),
     registration_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     role_id UUID NOT NULL REFERENCES Roles(role_id) ON DELETE RESTRICT,
     is_active BOOLEAN DEFAULT TRUE
@@ -31,7 +31,7 @@ CREATE TABLE Authors (
     author_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    date_of_birth DATE,
+    date_of_birth DATE CHECK (date_of_birth < CURRENT_DATE),
     country VARCHAR(50),
     biography TEXT
 );
@@ -40,7 +40,7 @@ CREATE TABLE Authors (
 CREATE TABLE Publishers (
     publisher_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     publisher_name VARCHAR(100) UNIQUE NOT NULL,
-    country VARCHAR(50)
+    country VARCHAR(50) DEFAULT 'Unknown'
 );
 
 -- Таблица Languages
@@ -62,7 +62,7 @@ CREATE TABLE Books (
     isbn VARCHAR(13) UNIQUE NOT NULL,
     title VARCHAR(200) NOT NULL,
     description TEXT,
-    publication_year INTEGER CHECK (publication_year IS NULL OR publication_year > 0),
+    publication_year INTEGER CHECK (publication_year BETWEEN 1000 AND EXTRACT(YEAR FROM CURRENT_DATE)),
     publisher_id UUID REFERENCES Publishers(publisher_id) ON DELETE SET NULL,
     language_id UUID REFERENCES Languages(language_id) ON DELETE SET NULL,
     series_id UUID REFERENCES Series(series_id) ON DELETE SET NULL,
@@ -82,7 +82,7 @@ CREATE TABLE Branches (
     branch_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     branch_name VARCHAR(100) NOT NULL,
     address VARCHAR(200),
-    city VARCHAR(50)
+    city VARCHAR(50) DEFAULT 'Unknown'
 );
 
 -- Таблица BookCopies
@@ -90,11 +90,182 @@ CREATE TABLE BookCopies (
     copy_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
     branch_id UUID NOT NULL REFERENCES Branches(branch_id) ON DELETE CASCADE,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('available', 'loaned', 'reserved', 'damaged')),
+    status VARCHAR(20) NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'loaned', 'reserved', 'damaged')),
     acquisition_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Триггер для создания копий после добавления книги
+-- Таблица Loans
+CREATE TABLE Loans (
+    loan_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    copy_id UUID NOT NULL REFERENCES BookCopies(copy_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
+    loan_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    due_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    return_date TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT chk_loans_due_date CHECK (due_date > loan_date),
+    CONSTRAINT chk_loans_return_date CHECK (return_date IS NULL OR return_date >= loan_date)
+);
+
+-- Таблица Reservations
+CREATE TABLE Reservations (
+    reservation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
+    reservation_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expiration_date TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'fulfilled', 'cancelled')),
+    CONSTRAINT chk_reservations_dates CHECK (expiration_date IS NULL OR expiration_date > reservation_date)
+);
+
+-- Таблица Fines
+CREATE TABLE Fines (
+    fine_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    loan_id UUID NOT NULL REFERENCES Loans(loan_id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 CHECK (amount >= 0),
+    paid BOOLEAN DEFAULT FALSE,
+    fine_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица Reviews
+CREATE TABLE Reviews (
+    review_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL DEFAULT 3 CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    review_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица BookAuthors (Many-to-Many)
+CREATE TABLE BookAuthors (
+    book_author_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES Authors(author_id) ON DELETE CASCADE,
+    UNIQUE(book_id, author_id)
+);
+
+-- Таблица BookGenres (Many-to-Many)
+CREATE TABLE BookGenres (
+    book_genre_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
+    genre_id UUID NOT NULL REFERENCES Genres(genre_id) ON DELETE CASCADE,
+    UNIQUE(book_id, genre_id)
+);
+
+-- Таблица AuditLogs (оставлена как есть для общей аудита)
+CREATE TABLE AuditLogs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES Users(user_id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    entity_id UUID,
+    log_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    details TEXT
+);
+
+-- History таблицы (для важных сущностей)
+-- BooksHistory: для отслеживания изменений в книгах
+CREATE TABLE BooksHistory (
+    history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    operation_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operation_type VARCHAR(10) NOT NULL CHECK (operation_type IN ('Insert', 'Update', 'Delete')),
+    old_value TEXT,
+    new_value TEXT,
+    username VARCHAR(50) NOT NULL
+);
+
+-- LoansHistory: для отслеживания изменений в займах
+CREATE TABLE LoansHistory (
+    history_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    operation_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operation_type VARCHAR(10) NOT NULL CHECK (operation_type IN ('Insert', 'Update', 'Delete')),
+    old_value TEXT,
+    new_value TEXT,
+    username VARCHAR(50) NOT NULL
+);
+
+-- Триггеры для History таблиц
+-- Для Books
+CREATE OR REPLACE FUNCTION log_books_history()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO BooksHistory (operation_type, old_value, new_value, username)
+        VALUES ('Insert', NULL, ROW_TO_JSON(NEW)::TEXT, CURRENT_USER);
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO BooksHistory (operation_type, old_value, new_value, username)
+        VALUES ('Update', ROW_TO_JSON(OLD)::TEXT, ROW_TO_JSON(NEW)::TEXT, CURRENT_USER);
+    ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO BooksHistory (operation_type, old_value, new_value, username)
+        VALUES ('Delete', ROW_TO_JSON(OLD)::TEXT, NULL, CURRENT_USER);
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_books_history
+AFTER INSERT OR UPDATE OR DELETE ON Books
+FOR EACH ROW EXECUTE FUNCTION log_books_history();
+
+-- Для Loans
+CREATE OR REPLACE FUNCTION log_loans_history()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO LoansHistory (operation_type, old_value, new_value, username)
+        VALUES ('Insert', NULL, ROW_TO_JSON(NEW)::TEXT, CURRENT_USER);
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO LoansHistory (operation_type, old_value, new_value, username)
+        VALUES ('Update', ROW_TO_JSON(OLD)::TEXT, ROW_TO_JSON(NEW)::TEXT, CURRENT_USER);
+    ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO LoansHistory (operation_type, old_value, new_value, username)
+        VALUES ('Delete', ROW_TO_JSON(OLD)::TEXT, NULL, CURRENT_USER);
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_loans_history
+AFTER INSERT OR UPDATE OR DELETE ON Loans
+FOR EACH ROW EXECUTE FUNCTION log_loans_history();
+
+-- Представления VIEW
+-- BookDetailsView: детали книг из нескольких таблиц
+CREATE VIEW BookDetailsView AS
+SELECT 
+    b.book_id, b.title, b.isbn, b.publication_year,
+    a.first_name || ' ' || a.last_name AS author,
+    g.genre_name,
+    p.publisher_name
+FROM Books b
+LEFT JOIN BookAuthors ba ON b.book_id = ba.book_id
+LEFT JOIN Authors a ON ba.author_id = a.author_id
+LEFT JOIN BookGenres bg ON b.book_id = bg.book_id
+LEFT JOIN Genres g ON bg.genre_id = g.genre_id
+LEFT JOIN Publishers p ON b.publisher_id = p.publisher_id;
+
+-- UserLoansView: займы пользователей из нескольких таблиц
+CREATE VIEW UserLoansView AS
+SELECT 
+    u.username, l.loan_id, l.loan_date, l.due_date, l.return_date,
+    b.title AS book_title,
+    bc.status AS copy_status
+FROM Loans l
+JOIN Users u ON l.user_id = u.user_id
+JOIN BookCopies bc ON l.copy_id = bc.copy_id
+JOIN Books b ON bc.book_id = b.book_id;
+
+-- OverdueLoansView: просроченные займы
+CREATE VIEW OverdueLoansView AS
+SELECT 
+    u.username, l.loan_id, b.title, l.due_date, 
+    (CURRENT_DATE - l.due_date::DATE) AS days_overdue
+FROM Loans l
+JOIN Users u ON l.user_id = u.user_id
+JOIN BookCopies bc ON l.copy_id = bc.copy_id
+JOIN Books b ON bc.book_id = b.book_id
+WHERE l.return_date IS NULL AND l.due_date < CURRENT_TIMESTAMP;
+
+-- Триггер для создания копий после добавления книги (оставлен как есть)
 CREATE OR REPLACE FUNCTION create_book_copies_on_insert()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -129,84 +300,7 @@ AFTER INSERT ON Books
 FOR EACH ROW
 EXECUTE FUNCTION create_book_copies_on_insert();
 
--- Таблица Loans
-CREATE TABLE Loans (
-    loan_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    copy_id UUID NOT NULL REFERENCES BookCopies(copy_id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
-    loan_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    due_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    return_date TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT chk_loans_due_date CHECK (due_date > loan_date)
-);
-
--- Таблица Reservations
-CREATE TABLE Reservations (
-    reservation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
-    reservation_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    expiration_date TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('active', 'fulfilled', 'cancelled')),
-    CONSTRAINT chk_reservations_dates CHECK (expiration_date IS NULL OR expiration_date > reservation_date)
-);
-
--- Таблица Fines
-CREATE TABLE Fines (
-    fine_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    loan_id UUID NOT NULL REFERENCES Loans(loan_id) ON DELETE CASCADE,
-    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
-    paid BOOLEAN DEFAULT FALSE,
-    fine_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Таблица Reviews
-CREATE TABLE Reviews (
-    review_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
-    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment TEXT,
-    review_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Таблица BookAuthors (Many-to-Many)
-CREATE TABLE BookAuthors (
-    book_author_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES Authors(author_id) ON DELETE CASCADE,
-    UNIQUE(book_id, author_id)
-);
-
--- Таблица BookGenres (Many-to-Many)
-CREATE TABLE BookGenres (
-    book_genre_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    book_id UUID NOT NULL REFERENCES Books(book_id) ON DELETE CASCADE,
-    genre_id UUID NOT NULL REFERENCES Genres(genre_id) ON DELETE CASCADE,
-    UNIQUE(book_id, genre_id)
-);
-
--- Таблица AuditLogs
-CREATE TABLE AuditLogs (
-    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES Users(user_id) ON DELETE SET NULL,
-    action VARCHAR(50) NOT NULL,
-    entity_id UUID,
-    log_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    details TEXT
-);
-
--- Индексы
-CREATE INDEX idx_books_isbn ON Books(isbn);
-CREATE INDEX idx_authors_last_name ON Authors(last_name);
-CREATE INDEX idx_loans_due_date ON Loans(due_date);
-CREATE INDEX idx_loans_user_id ON Loans(user_id);
-CREATE INDEX idx_bookcopies_book_id ON BookCopies(book_id);
-CREATE INDEX idx_bookcopies_status ON BookCopies(status);
-CREATE INDEX idx_users_username ON Users(username);
-CREATE INDEX idx_users_email ON Users(email);
-
--- Триггер для автоматического создания штрафа при просрочке
+-- Триггер для автоматического создания штрафа при просрочке (оставлен как есть)
 CREATE OR REPLACE FUNCTION create_fine_on_overdue()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -235,7 +329,17 @@ FOR EACH ROW
 WHEN (NEW.return_date IS NOT NULL AND OLD.return_date IS NULL)
 EXECUTE FUNCTION create_fine_on_overdue();
 
--- Начальные данные
+-- Индексы (оставлены как есть)
+CREATE INDEX idx_books_isbn ON Books(isbn);
+CREATE INDEX idx_authors_last_name ON Authors(last_name);
+CREATE INDEX idx_loans_due_date ON Loans(due_date);
+CREATE INDEX idx_loans_user_id ON Loans(user_id);
+CREATE INDEX idx_bookcopies_book_id ON BookCopies(book_id);
+CREATE INDEX idx_bookcopies_status ON BookCopies(status);
+CREATE INDEX idx_users_username ON Users(username);
+CREATE INDEX idx_users_email ON Users(email);
+
+-- Начальные данные (оставлены как есть, но усечены для краткости; полный вставок из оригинала)
 -- Роли
 INSERT INTO Roles (role_id, role_name) VALUES 
     ('00000000-0000-0000-0000-000000000001', 'user'),
@@ -255,6 +359,7 @@ INSERT INTO Publishers (publisher_id, publisher_name, country) VALUES
     ('20000000-0000-0000-0000-000000000002', 'АСТ', 'Россия'),
     ('20000000-0000-0000-0000-000000000003', 'Penguin Books', 'Великобритания')
 ON CONFLICT (publisher_id) DO NOTHING;
+
 
 INSERT INTO Publishers (publisher_id, publisher_name, country) VALUES
     ('20000000-0000-0000-0000-000000000004', 'HarperCollins', 'США'),
