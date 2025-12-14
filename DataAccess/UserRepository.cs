@@ -20,7 +20,8 @@ public class UserRepository
 
         var sql = @"
             SELECT u.user_id, u.username, u.email, u.password_hash, u.first_name, u.last_name,
-                   u.date_of_birth, u.registration_date, u.role_id, u.is_active, r.role_name
+                   u.date_of_birth, u.registration_date, u.role_id, u.is_active, r.role_name,
+                   u.confirmation_token, u.is_email_confirmed, u.password_reset_token, u.reset_token_expiration
             FROM Users u
             INNER JOIN Roles r ON u.role_id = r.role_id
             WHERE u.username = @username";
@@ -42,7 +43,11 @@ public class UserRepository
                 DateOfBirth = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
                 RegistrationDate = reader.GetDateTime(7),
                 RoleId = reader.GetGuid(8),
-                IsActive = reader.GetBoolean(9)
+                IsActive = reader.GetBoolean(9),
+                ConfirmationToken = reader.IsDBNull(11) ? null : reader.GetString(11),
+                IsEmailConfirmed = reader.IsDBNull(12) ? false : reader.GetBoolean(12),
+                PasswordResetToken = reader.IsDBNull(13) ? null : reader.GetString(13),
+                ResetTokenExpiration = reader.IsDBNull(14) ? null : reader.GetDateTime(14)
             };
         }
 
@@ -54,7 +59,10 @@ public class UserRepository
         using var conn = _db.GetConnection();
         await conn.OpenAsync();
 
-        var sql = "SELECT user_id, username, email, password_hash, first_name, last_name, date_of_birth, registration_date, role_id, is_active FROM Users WHERE email = @email";
+        var sql = @"SELECT user_id, username, email, password_hash, first_name, last_name, date_of_birth, 
+                           registration_date, role_id, is_active, confirmation_token, is_email_confirmed, 
+                           password_reset_token, reset_token_expiration 
+                    FROM Users WHERE email = @email";
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@email", email);
 
@@ -72,14 +80,18 @@ public class UserRepository
                 DateOfBirth = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
                 RegistrationDate = reader.GetDateTime(7),
                 RoleId = reader.GetGuid(8),
-                IsActive = reader.GetBoolean(9)
+                IsActive = reader.GetBoolean(9),
+                ConfirmationToken = reader.IsDBNull(10) ? null : reader.GetString(10),
+                IsEmailConfirmed = reader.IsDBNull(11) ? false : reader.GetBoolean(11),
+                PasswordResetToken = reader.IsDBNull(12) ? null : reader.GetString(12),
+                ResetTokenExpiration = reader.IsDBNull(13) ? null : reader.GetDateTime(13)
             };
         }
 
         return null;
     }
 
-    public async Task<Guid> CreateUserAsync(RegisterDTO registerDto, string passwordHash)
+    public async Task<Guid> CreateUserAsync(RegisterDTO registerDto, string passwordHash, string confirmationToken)
     {
         using var conn = _db.GetConnection();
         await conn.OpenAsync();
@@ -96,8 +108,8 @@ public class UserRepository
 
         var userId = Guid.NewGuid();
         var sql = @"
-            INSERT INTO Users (user_id, username, email, password_hash, first_name, last_name, date_of_birth, role_id)
-            VALUES (@userId, @username, @email, @passwordHash, @firstName, @lastName, @dateOfBirth, @roleId)";
+            INSERT INTO Users (user_id, username, email, password_hash, first_name, last_name, date_of_birth, role_id, confirmation_token, is_email_confirmed)
+            VALUES (@userId, @username, @email, @passwordHash, @firstName, @lastName, @dateOfBirth, @roleId, @confirmationToken, FALSE)";
 
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@userId", userId);
@@ -108,9 +120,107 @@ public class UserRepository
         cmd.Parameters.AddWithValue("@lastName", (object?)registerDto.LastName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@dateOfBirth", (object?)registerDto.DateOfBirth ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@roleId", roleId);
+        cmd.Parameters.AddWithValue("@confirmationToken", confirmationToken);
 
         await cmd.ExecuteNonQueryAsync();
         return userId;
+    }
+
+    public async Task<bool> ConfirmEmailAsync(string email, string token)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        var sql = @"
+            UPDATE Users 
+            SET is_email_confirmed = TRUE, confirmation_token = NULL
+            WHERE email = @email AND confirmation_token = @token AND is_email_confirmed = FALSE";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@email", email);
+        cmd.Parameters.AddWithValue("@token", token);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
+    public async Task<bool> SetPasswordResetTokenAsync(string email, string token, DateTime expiration)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        var sql = @"
+            UPDATE Users 
+            SET password_reset_token = @token, reset_token_expiration = @expiration
+            WHERE email = @email";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@email", email);
+        cmd.Parameters.AddWithValue("@token", token);
+        cmd.Parameters.AddWithValue("@expiration", expiration);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
+    }
+
+    public async Task<User?> GetUserByResetTokenAsync(string email, string token)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        var sql = @"
+            SELECT user_id, username, email, password_hash, first_name, last_name, date_of_birth, 
+                   registration_date, role_id, is_active, confirmation_token, is_email_confirmed, 
+                   password_reset_token, reset_token_expiration 
+            FROM Users 
+            WHERE email = @email AND password_reset_token = @token 
+                  AND reset_token_expiration > CURRENT_TIMESTAMP";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@email", email);
+        cmd.Parameters.AddWithValue("@token", token);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new User
+            {
+                UserId = reader.GetGuid(0),
+                Username = reader.GetString(1),
+                Email = reader.GetString(2),
+                PasswordHash = reader.GetString(3),
+                FirstName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                LastName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                DateOfBirth = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
+                RegistrationDate = reader.GetDateTime(7),
+                RoleId = reader.GetGuid(8),
+                IsActive = reader.GetBoolean(9),
+                ConfirmationToken = reader.IsDBNull(10) ? null : reader.GetString(10),
+                IsEmailConfirmed = reader.IsDBNull(11) ? false : reader.GetBoolean(11),
+                PasswordResetToken = reader.IsDBNull(12) ? null : reader.GetString(12),
+                ResetTokenExpiration = reader.IsDBNull(13) ? null : reader.GetDateTime(13)
+            };
+        }
+
+        return null;
+    }
+
+    public async Task<bool> ResetPasswordAsync(Guid userId, string newPasswordHash)
+    {
+        using var conn = _db.GetConnection();
+        await conn.OpenAsync();
+
+        var sql = @"
+            UPDATE Users 
+            SET password_hash = @passwordHash, password_reset_token = NULL, reset_token_expiration = NULL
+            WHERE user_id = @userId";
+
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@passwordHash", newPasswordHash);
+
+        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        return rowsAffected > 0;
     }
 
     public async Task<string> GetUserRoleAsync(Guid userId)

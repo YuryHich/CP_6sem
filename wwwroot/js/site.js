@@ -23,6 +23,10 @@ function checkAuth() {
             if (historyNav) {
                 historyNav.style.display = 'block';
             }
+            const exportNav = document.getElementById('exportNav');
+            if (exportNav) {
+                exportNav.style.display = 'block';
+            }
         }
     } else {
         document.getElementById('loginNav').style.display = 'block';
@@ -37,6 +41,10 @@ function checkAuth() {
         const lookupsNav = document.getElementById('lookupsNav');
         if (lookupsNav) {
             lookupsNav.style.display = 'none';
+        }
+        const exportNav = document.getElementById('exportNav');
+        if (exportNav) {
+            exportNav.style.display = 'none';
         }
         const historyNav = document.getElementById('historyNav');
         if (historyNav) {
@@ -55,4 +63,3 @@ function logout() {
 
 // Проверяем авторизацию при загрузке страницы
 document.addEventListener('DOMContentLoaded', checkAuth);
-

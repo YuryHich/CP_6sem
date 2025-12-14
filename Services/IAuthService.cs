@@ -5,6 +5,9 @@ namespace LibraryManagement.Services;
 public interface IAuthService
 {
     Task<AuthResponseDTO?> LoginAsync(LoginDTO loginDto);
-    Task<AuthResponseDTO> RegisterAsync(RegisterDTO registerDto);
+    Task<RegisterResponseDTO> RegisterAsync(RegisterDTO registerDto);
+    Task<bool> ConfirmEmailAsync(string email, string token);
+    Task<bool> RequestPasswordResetAsync(string email);
+    Task<bool> ResetPasswordAsync(string email, string token, string newPassword);
 }
 

@@ -1,0 +1,109 @@
+@page
+@model LibraryManagement.Pages.Admin.ExportModel
+@{
+    ViewData["Title"] = "Экспорт базы данных";
+}
+
+<h2>Экспорт базы данных</h2>
+
+<div class="card">
+    <div class="card-body">
+        <p class="card-text">
+            Экспорт данных из ключевых таблиц базы данных в CSV формат.
+            <br><small class="text-muted">Будут экспортированы: Books, Users (без паролей), Loans, BookCopies, Reviews, Authors, Genres, Publishers, Languages, Branches</small>
+        </p>
+        <button id="exportBtn" class="btn btn-primary" onclick="exportDatabase()">
+            <span id="exportBtnText">Экспорт БД в CSV</span>
+            <span id="exportBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
+        <div id="exportMessage" class="alert mt-3" style="display: none;"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        }
+
+        async function exportDatabase() {
+            const exportBtn = document.getElementById('exportBtn');
+            const exportBtnText = document.getElementById('exportBtnText');
+            const exportBtnSpinner = document.getElementById('exportBtnSpinner');
+            const exportMessage = document.getElementById('exportMessage');
+
+            exportBtn.disabled = true;
+            exportBtnText.textContent = 'Экспорт...';
+            exportBtnSpinner.classList.remove('d-none');
+            exportMessage.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/export/csv', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Получаем имя файла из заголовка Content-Disposition
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let fileName = 'library_backup.csv';
+                    if (contentDisposition) {
+                        const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                        if (fileNameMatch) {
+                            fileName = fileNameMatch[1];
+                        }
+                    }
+                    
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    exportMessage.className = 'alert alert-success mt-3';
+                    exportMessage.textContent = 'Экспорт завершён успешно! Файл загружен.';
+                    exportMessage.style.display = 'block';
+
+                    // Показываем toast-уведомление (если есть библиотека для toast)
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                        const toastElement = document.createElement('div');
+                        toastElement.className = 'toast align-items-center text-white bg-success border-0';
+                        toastElement.setAttribute('role', 'alert');
+                        toastElement.innerHTML = `
+                            <div class="d-flex">
+                                <div class="toast-body">Экспорт завершён</div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>
+                        `;
+                        document.body.appendChild(toastElement);
+                        const toast = new bootstrap.Toast(toastElement);
+                        toast.show();
+                        setTimeout(() => document.body.removeChild(toastElement), 5000);
+                    }
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка при экспорте');
+                }
+            } catch (error) {
+                exportMessage.className = 'alert alert-danger mt-3';
+                exportMessage.textContent = error.message || 'Ошибка соединения';
+                exportMessage.style.display = 'block';
+            } finally {
+                exportBtn.disabled = false;
+                exportBtnText.textContent = 'Экспорт БД в CSV';
+                exportBtnSpinner.classList.add('d-none');
+            }
+        }
+    </script>
+}
+
