@@ -25,20 +25,23 @@
                         <li class="nav-item" id="loansNav" style="display: none;">
                             <a class="nav-link" href="/user/loans">Мои займы</a>
                         </li>
+                        <li class="nav-item" id="statisticsNav" style="display: none;">
+                            <a class="nav-link" href="/statistics">Статистика</a>
+                        </li>
                         <li class="nav-item" id="adminNav" style="display: none;">
                             <a class="nav-link" href="/admin/books/add">Добавить книгу</a>
                         </li>
                         <li class="nav-item" id="lookupsNav" style="display: none;">
                             <a class="nav-link" href="/admin/lookups">Справочники</a>
                         </li>
-                        <li class="nav-item" id="reportsNav" style="display: none;">
-                            <a class="nav-link" href="/admin/reports">Отчёты</a>
-                        </li>
                         <li class="nav-item" id="exportNav" style="display: none;">
                             <a class="nav-link" href="/admin/export">Экспорт БД</a>
                         </li>
                         <li class="nav-item" id="historyNav" style="display: none;">
                             <a class="nav-link" href="/admin/history">Журнал изменений</a>
+                        </li>
+                        <li class="nav-item" id="usersNav" style="display: none;">
+                            <a class="nav-link" href="/admin/users">Пользователи</a>
                         </li>
                     </ul>
                     <ul class="navbar-nav">
@@ -47,6 +50,11 @@
                         </li>
                         <li class="nav-item" id="registerNav">
                             <a class="nav-link" href="/auth/register">Регистрация</a>
+                        </li>
+                        <li class="nav-item" id="deleteAccountNav" style="display: none;">
+                            <a class="nav-link" href="/account/delete">
+                                <i class="fas fa-user-times"></i> Удалить аккаунт
+                            </a>
                         </li>
                         <li class="nav-item" id="logoutNav" style="display: none;">
                             <button class="btn btn-link nav-link text-white" onclick="logout()">Выход</button>

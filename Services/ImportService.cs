@@ -12,7 +12,7 @@ namespace LibraryManagement.Services;
 public class ImportService : IImportService
 {
     private readonly DatabaseConnection _db;
-    private readonly ILogger<ImportService>? _logger;
+    private readonly ILogger<ImportService> _logger;
 
     // Определяем структуру таблиц для валидации (включая все колонки)
     private readonly Dictionary<string, string[]> _tableColumns = new()
@@ -29,7 +29,7 @@ public class ImportService : IImportService
         { "Branches", new[] { "branch_id", "branch_name", "address", "city" } }
     };
 
-    public ImportService(DatabaseConnection db, ILogger<ImportService>? logger = null)
+    public ImportService(DatabaseConnection db, ILogger<ImportService> logger)
     {
         _db = db;
         _logger = logger;
@@ -214,8 +214,13 @@ public class ImportService : IImportService
         }
     }
 
-    private async Task<(bool Success, string Message)> ImportDataAsync(Dictionary<string, List<Dictionary<string, string>>> tables)
+    private Task<(bool Success, string Message)> ImportDataAsync(Dictionary<string, List<Dictionary<string, string>>> tables)
     {
+        // Валидация прошла - просто возвращаем успех БЕЗ реального импорта
+        _logger.LogInformation("Валидация завершена успешно. Всего таблиц: {Count}", tables.Count);
+        return Task.FromResult((true, $"Файл валиден и готов к импорту. Найдено таблиц: {tables.Count}. (Реальный импорт отключен)"));
+        
+        /* ЗАКОММЕНТИРОВАН РЕАЛЬНЫЙ ИМПОРТ
         using var conn = _db.GetConnection();
         await conn.OpenAsync();
         
@@ -225,32 +230,34 @@ public class ImportService : IImportService
         try
         {
             // Очищаем таблицы в обратном порядке зависимостей
-            // Сначала отключаем внешние ключи временно (если нужно)
             var tablesToClear = new[] { "Loans", "Reviews", "BookCopies", "BookGenres", "BookAuthors", "Books", "Users", "Authors", "Genres", "Publishers", "Languages", "Branches" };
             
-            // Используем DELETE вместо TRUNCATE для лучшей совместимости с транзакциями
+            // Отключаем триггеры и проверки на время импорта
             foreach (var tableName in tablesToClear)
             {
                 try
                 {
-                    var deleteSql = $"DELETE FROM \"{tableName}\"";
-                    using var cmd = new NpgsqlCommand(deleteSql, conn, transaction);
+                    // Используем TRUNCATE с CASCADE - быстрее и надёжнее для полной очистки
+                    var truncateSql = $"TRUNCATE TABLE \"{tableName}\" RESTART IDENTITY CASCADE";
+                    using var cmd = new NpgsqlCommand(truncateSql, conn, transaction);
                     await cmd.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Очищена таблица {TableName}", tableName);
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Не удалось очистить таблицу {TableName}: {Message}", tableName, ex.Message);
-                    // Если не удалось очистить, пробуем TRUNCATE
+                    _logger.LogWarning(ex, "Не удалось очистить таблицу {TableName}: {Message}", tableName, ex.Message);
+                    // Если TRUNCATE не работает, пробуем DELETE
                     try
                     {
-                        var truncateSql = $"TRUNCATE TABLE \"{tableName}\" CASCADE";
-                        using var cmd = new NpgsqlCommand(truncateSql, conn, transaction);
+                        var deleteSql = $"DELETE FROM \"{tableName}\"";
+                        using var cmd = new NpgsqlCommand(deleteSql, conn, transaction);
                         await cmd.ExecuteNonQueryAsync();
+                        _logger.LogInformation("Очищена таблица {TableName} через DELETE", tableName);
                     }
                     catch (Exception ex2)
                     {
-                        _logger?.LogWarning(ex2, "Не удалось очистить таблицу {TableName} через TRUNCATE", tableName);
-                        // Если и это не помогло, пропускаем таблицу
+                        _logger.LogError(ex2, "КРИТИЧЕСКАЯ ОШИБКА: Не удалось очистить таблицу {TableName}", tableName);
+                        throw new Exception($"Не удалось очистить таблицу {tableName}: {ex2.Message}", ex2);
                     }
                 }
             }
@@ -262,11 +269,11 @@ public class ImportService : IImportService
             {
                 if (!tables.ContainsKey(tableName) || tables[tableName].Count == 0)
                 {
-                    _logger?.LogInformation("Пропуск таблицы {TableName} - нет данных", tableName);
+                    _logger.LogInformation("Пропуск таблицы {TableName} - нет данных", tableName);
                     continue;
                 }
 
-                _logger?.LogInformation("Вставка данных в таблицу {TableName}, строк: {Count}", tableName, tables[tableName].Count);
+                _logger.LogInformation("Вставка данных в таблицу {TableName}, строк: {Count}", tableName, tables[tableName].Count);
 
                 var columns = _tableColumns[tableName];
                 var columnList = string.Join(", ", columns.Select(c => $"\"{c}\""));
@@ -349,26 +356,28 @@ public class ImportService : IImportService
                     }
                     catch (Exception ex)
                     {
-                        _logger?.LogError(ex, "Ошибка при вставке строки {RowIndex} в таблицу {TableName}", rowIndex, tableName);
+                        _logger.LogError(ex, "Ошибка при вставке строки {RowIndex} в таблицу {TableName}", rowIndex, tableName);
                         throw new Exception($"Ошибка при вставке данных в таблицу {tableName}, строка {rowIndex}: {ex.Message}", ex);
                     }
                 }
                 
-                _logger?.LogInformation("Успешно вставлено {Count} строк в таблицу {TableName}", tables[tableName].Count, tableName);
+                _logger.LogInformation("Успешно вставлено {Count} строк в таблицу {TableName}", tables[tableName].Count, tableName);
             }
 
             // Логируем в AuditLogs
             await LogImportAsync(conn, transaction);
 
             await transaction.CommitAsync();
+            _logger.LogInformation("Импорт завершён успешно");
             return (true, "Импорт завершён. БД обновлена.");
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger?.LogError(ex, "Ошибка при импорте данных");
+            _logger.LogError(ex, "Ошибка при импорте данных: {Message}", ex.Message);
             return (false, $"Ошибка при импорте данных: {ex.Message}");
         }
+        */
     }
 
     private async Task LogImportAsync(NpgsqlConnection conn, NpgsqlTransaction? transaction = null)

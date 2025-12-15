@@ -1,0 +1,541 @@
+@page
+@model LibraryManagement.Pages.StatisticsModel
+@{
+    ViewData["Title"] = "Статистика и отчёты";
+}
+
+<h2>Статистика и отчёты</h2>
+
+<!-- Раздел с генерацией отчётов для админа -->
+<div id="reportsSection" style="display: none;" class="mb-5">
+    <div class="card shadow-sm">
+        <div class="card-header bg-danger text-white">
+            <h4 class="mb-0"><i class="fas fa-file-pdf"></i> Генерация отчётов (только для администратора)</h4>
+        </div>
+        <div class="card-body">
+            <!-- Форма выбора дат -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h5><i class="fas fa-calendar-alt"></i> Выбор периода для отчётов</h5>
+                    <p class="text-muted">Укажите диапазон дат для формирования отчётов</p>
+                </div>
+                <div class="col-md-4">
+                    <label for="fromDate" class="form-label">Дата начала:</label>
+                    <input type="date" id="fromDate" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label for="toDate" class="form-label">Дата окончания:</label>
+                    <input type="date" id="toDate" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label d-block">&nbsp;</label>
+                    <button type="button" class="btn btn-secondary" onclick="setDefaultDates()">
+                        <i class="fas fa-undo"></i> За последний год
+                    </button>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            
+            <!-- Кнопки генерации -->
+            <div class="row">
+                <div class="col-md-6">
+                    <h5><i class="fas fa-file-pdf"></i> PDF отчёт о займах</h5>
+                    <p class="text-muted">Полный отчёт с вступлением, статистикой, таблицей займов и заключением</p>
+                    <button type="button" class="btn btn-danger btn-lg mb-2" onclick="generateLoansPdfReport()">
+                        <i class="fas fa-file-pdf"></i> Скачать PDF отчёт
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <h5><i class="fas fa-file-excel"></i> Excel отчёт о займах</h5>
+                    <p class="text-muted">Статистика и данные о займах в формате Excel для анализа</p>
+                    <button type="button" class="btn btn-success btn-lg mb-2" onclick="generateLoansExcelReport()">
+                        <i class="fas fa-file-excel"></i> Скачать Excel отчёт
+                    </button>
+                </div>
+            </div>
+            <hr>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <h5><i class="fas fa-info-circle"></i> Содержание отчётов</h5>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success"></i> <strong>Вступительное слово</strong> с описанием системы</li>
+                        <li><i class="fas fa-check text-success"></i> <strong>Общая статистика библиотеки</strong> (книги, займы, пользователи)</li>
+                        <li><i class="fas fa-check text-success"></i> <strong>Процентные показатели</strong> и анализ данных</li>
+                        <li><i class="fas fa-check text-success"></i> <strong>Детальная информация о займах</strong> с цветовым кодированием</li>
+                        <li><i class="fas fa-check text-success"></i> <strong>Заключение</strong> с выводами и рекомендациями</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="adminStats" style="display: none;">
+    <h3>Глобальная статистика</h3>
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="totalBooks">0</h5>
+                    <p class="card-text">Всего книг</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="totalLoans">0</h5>
+                    <p class="card-text">Всего займов</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="activeLoans">0</h5>
+                    <p class="card-text">Активные займы</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-danger" id="overdueLoans">0</h5>
+                    <p class="card-text">Просрочки</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="totalUsers">0</h5>
+                    <p class="card-text">Пользователей</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="totalAuthors">0</h5>
+                    <p class="card-text">Авторов</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="userStats" style="display: none;">
+    <h3>Ваша статистика</h3>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="userTotalLoans">0</h5>
+                    <p class="card-text">Всего займов</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title" id="userActiveLoans">0</h5>
+                    <p class="card-text">Активные займы</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-danger" id="userOverdueLoans">0</h5>
+                    <p class="card-text">Просрочки</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Любимые жанры</h5>
+                    <canvas id="userGenresChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Топ авторов по займам</h5>
+                <canvas id="authorsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Статистика по жанрам</h5>
+                <canvas id="genresChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Книги по языкам</h5>
+                <canvas id="languagesBooksChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Займы по языкам</h5>
+                <canvas id="languagesLoansChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token) {
+            window.location.href = '/auth/login';
+        }
+
+        // Показываем раздел отчётов только для админа
+        if (role === 'admin') {
+            document.getElementById('reportsSection').style.display = 'block';
+        }
+
+        // Функция генерации PDF отчёта
+        async function generateLoansPdfReport() {
+            try {
+                Swal.fire({
+                    title: 'Генерация отчёта...',
+                    text: 'Пожалуйста, подождите',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                const response = await fetch('/api/reports/loans-pdf', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Ошибка при генерации отчёта');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `loans_report_${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Успех',
+                    text: 'Отчёт успешно сгенерирован',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } catch (error) {
+                console.error('Ошибка:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Ошибка',
+                    text: error.message || 'Не удалось сгенерировать отчёт'
+                });
+            }
+        }
+
+        // Функция генерации Excel отчёта
+        async function generateLoansExcelReport() {
+            try {
+                const fromDate = document.getElementById('fromDate').value;
+                const toDate = document.getElementById('toDate').value;
+
+                if (!fromDate || !toDate) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Внимание',
+                        text: 'Пожалуйста, выберите диапазон дат'
+                    });
+                    return;
+                }
+
+                if (new Date(fromDate) > new Date(toDate)) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Ошибка',
+                        text: 'Дата начала не может быть больше даты окончания'
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Генерация Excel отчёта...',
+                    text: 'Пожалуйста, подождите',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                const response = await fetch(`/api/reports/excel?fromDate=${fromDate}&toDate=${toDate}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Ошибка при генерации Excel отчёта');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `loans_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Успех',
+                    text: 'Excel отчёт успешно сгенерирован',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } catch (error) {
+                console.error('Ошибка:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Ошибка',
+                    text: error.message || 'Не удалось сгенерировать Excel отчёт'
+                });
+            }
+        }
+
+        async function loadStatistics() {
+            try {
+                // Загрузка статистики авторов
+                const authorsResponse = await fetch('/api/statistics/authors', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const authors = await authorsResponse.json();
+                createAuthorsChart(authors);
+
+                // Загрузка статистики жанров
+                const genresResponse = await fetch('/api/statistics/genres', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const genres = await genresResponse.json();
+                createGenresChart(genres);
+
+                // Загрузка статистики языков
+                const languagesResponse = await fetch('/api/statistics/languages', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const languages = await languagesResponse.json();
+                createLanguagesCharts(languages);
+
+                // Загрузка статистики в зависимости от роли
+                if (role === 'admin') {
+                    document.getElementById('adminStats').style.display = 'block';
+                    await loadGlobalStatistics();
+                } else {
+                    document.getElementById('userStats').style.display = 'block';
+                    await loadUserStatistics();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики:', error);
+            }
+        }
+
+        async function loadGlobalStatistics() {
+            const response = await fetch('/api/statistics/global', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const stats = await response.json();
+            
+            document.getElementById('totalBooks').textContent = stats.totalBooks;
+            document.getElementById('totalLoans').textContent = stats.totalLoans;
+            document.getElementById('activeLoans').textContent = stats.activeLoans;
+            document.getElementById('overdueLoans').textContent = stats.overdueLoans;
+            document.getElementById('totalUsers').textContent = stats.totalUsers;
+            document.getElementById('totalAuthors').textContent = stats.totalAuthors;
+        }
+
+        async function loadUserStatistics() {
+            const response = await fetch('/api/statistics/user', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const stats = await response.json();
+            
+            document.getElementById('userTotalLoans').textContent = stats.totalLoans;
+            document.getElementById('userActiveLoans').textContent = stats.activeLoans;
+            document.getElementById('userOverdueLoans').textContent = stats.overdueLoans;
+
+            // График любимых жанров пользователя
+            if (stats.favoriteGenres && stats.favoriteGenres.length > 0) {
+                createUserGenresChart(stats.favoriteGenres);
+            }
+        }
+
+        function createAuthorsChart(authors) {
+            const ctx = document.getElementById('authorsChart').getContext('2d');
+            const top10 = authors.slice(0, 10);
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top10.map(a => a.authorName),
+                    datasets: [{
+                        label: 'Количество займов',
+                        data: top10.map(a => a.loanCount),
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function createGenresChart(genres) {
+            const ctx = document.getElementById('genresChart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: genres.map(g => g.genreName),
+                    datasets: [{
+                        label: 'Займов',
+                        data: genres.map(g => g.loanCount),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(153, 102, 255, 0.8)',
+                            'rgba(255, 159, 64, 0.8)',
+                            'rgba(199, 199, 199, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+        }
+
+        function createLanguagesCharts(languages) {
+            // График книг по языкам
+            const ctx1 = document.getElementById('languagesBooksChart').getContext('2d');
+            new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: languages.map(l => l.languageName),
+                    datasets: [{
+                        label: 'Количество книг',
+                        data: languages.map(l => l.bookCount),
+                        backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // График займов по языкам
+            const ctx2 = document.getElementById('languagesLoansChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: languages.map(l => l.languageName),
+                    datasets: [{
+                        label: 'Количество займов',
+                        data: languages.map(l => l.loanCount),
+                        backgroundColor: 'rgba(153, 102, 255, 0.8)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function createUserGenresChart(genres) {
+            const ctx = document.getElementById('userGenresChart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: genres.map(g => g.genreName),
+                    datasets: [{
+                        label: 'Займов',
+                        data: genres.map(g => g.count),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(153, 102, 255, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+        }
+
+        // Загружаем статистику при загрузке страницы
+        loadStatistics();
+    </script>
+}
+

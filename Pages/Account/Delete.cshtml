@@ -1,0 +1,190 @@
+@page
+@model LibraryManagement.Pages.Account.DeleteModel
+@{
+    ViewData["Title"] = "Удаление аккаунта";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Удаление аккаунта</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Внимание!</strong> Это действие необратимо. Все ваши данные будут безвозвратно удалены.
+                </div>
+
+                <form id="deleteAccountForm">
+                    <div class="mb-3">
+                        <p>Будут удалены:</p>
+                        <ul>
+                            <li>Ваш профиль</li>
+                            <li>История займов</li>
+                            <li>Отзывы на книги</li>
+                            <li>Все связанные данные</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="confirmCheckbox" required>
+                        <label class="form-check-label" for="confirmCheckbox">
+                            Я понимаю, что это действие необратимо и хочу удалить свой аккаунт
+                        </label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Введите ваш пароль для подтверждения:</label>
+                        <input type="password" class="form-control" id="password" required>
+                    </div>
+
+                    <div id="adminWarning" class="alert alert-danger" style="display: none;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>Вы последний администратор!</strong> Удаление вашего аккаунта невозможно, так как в системе должен быть хотя бы один администратор.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger" id="deleteBtn">
+                            <i class="fas fa-trash"></i> Удалить аккаунт
+                        </button>
+                        <a href="/" class="btn btn-secondary">Отмена</a>
+                    </div>
+                </form>
+
+                <div id="message" class="alert mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        const userId = localStorage.getItem('userId');
+        const role = localStorage.getItem('role');
+
+        if (!token || !userId) {
+            window.location.href = '/auth/login';
+        }
+
+        // Проверяем, является ли пользователь последним админом
+        async function checkLastAdmin() {
+            if (role !== 'admin') {
+                return false;
+            }
+
+            try {
+                const response = await fetch('/api/account/check-last-admin', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.isLastAdmin;
+                }
+            } catch (error) {
+                console.error('Ошибка проверки:', error);
+            }
+
+            return false;
+        }
+
+        document.getElementById('deleteAccountForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const confirmCheckbox = document.getElementById('confirmCheckbox');
+            const password = document.getElementById('password').value;
+            const deleteBtn = document.getElementById('deleteBtn');
+            const message = document.getElementById('message');
+
+            if (!confirmCheckbox.checked) {
+                message.className = 'alert alert-danger mt-3';
+                message.textContent = 'Необходимо подтвердить согласие на удаление';
+                message.style.display = 'block';
+                return;
+            }
+
+            // Проверяем, не последний ли это админ
+            const isLastAdmin = await checkLastAdmin();
+            if (isLastAdmin) {
+                document.getElementById('adminWarning').style.display = 'block';
+                deleteBtn.disabled = true;
+                return;
+            }
+
+            // Финальное подтверждение через SweetAlert2
+            const result = await Swal.fire({
+                title: 'Последнее предупреждение',
+                text: 'Вы действительно хотите удалить свой аккаунт? Это действие НЕОБРАТИМО!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Да, удалить навсегда',
+                cancelButtonText: 'Нет, отменить'
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Удаление...';
+
+            try {
+                const response = await fetch('/api/account/delete', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Аккаунт удалён',
+                        text: 'Ваш аккаунт был успешно удалён',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+
+                    // Выходим и перенаправляем
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userId');
+                    localStorage.removeItem('username');
+                    localStorage.removeItem('role');
+                    
+                    window.location.href = '/?message=account_deleted';
+                } else {
+                    message.className = 'alert alert-danger mt-3';
+                    message.textContent = data.error || 'Ошибка при удалении аккаунта';
+                    message.style.display = 'block';
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Удалить аккаунт';
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                message.className = 'alert alert-danger mt-3';
+                message.textContent = 'Ошибка соединения с сервером';
+                message.style.display = 'block';
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Удалить аккаунт';
+            }
+        });
+
+        // Проверяем при загрузке страницы
+        checkLastAdmin().then(isLast => {
+            if (isLast) {
+                document.getElementById('adminWarning').style.display = 'block';
+                document.getElementById('deleteBtn').disabled = true;
+            }
+        });
+    </script>
+}
+

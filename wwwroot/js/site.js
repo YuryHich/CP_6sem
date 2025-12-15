@@ -7,14 +7,16 @@ function checkAuth() {
         document.getElementById('loginNav').style.display = 'none';
         document.getElementById('registerNav').style.display = 'none';
         document.getElementById('logoutNav').style.display = 'block';
+        document.getElementById('deleteAccountNav').style.display = 'block';
         document.getElementById('loansNav').style.display = 'block';
+        
+        const statisticsNav = document.getElementById('statisticsNav');
+        if (statisticsNav) {
+            statisticsNav.style.display = 'block';
+        }
         
         if (role === 'admin') {
             document.getElementById('adminNav').style.display = 'block';
-            const reportsNav = document.getElementById('reportsNav');
-            if (reportsNav) {
-                reportsNav.style.display = 'block';
-            }
             const lookupsNav = document.getElementById('lookupsNav');
             if (lookupsNav) {
                 lookupsNav.style.display = 'block';
@@ -27,13 +29,24 @@ function checkAuth() {
             if (exportNav) {
                 exportNav.style.display = 'block';
             }
+            const usersNav = document.getElementById('usersNav');
+            if (usersNav) {
+                usersNav.style.display = 'block';
+            }
         }
     } else {
         document.getElementById('loginNav').style.display = 'block';
         document.getElementById('registerNav').style.display = 'block';
         document.getElementById('logoutNav').style.display = 'none';
+        document.getElementById('deleteAccountNav').style.display = 'none';
         document.getElementById('loansNav').style.display = 'none';
         document.getElementById('adminNav').style.display = 'none';
+        
+        const statisticsNav = document.getElementById('statisticsNav');
+        if (statisticsNav) {
+            statisticsNav.style.display = 'none';
+        }
+        
         const reportsNav = document.getElementById('reportsNav');
         if (reportsNav) {
             reportsNav.style.display = 'none';
@@ -49,6 +62,10 @@ function checkAuth() {
         const historyNav = document.getElementById('historyNav');
         if (historyNav) {
             historyNav.style.display = 'none';
+        }
+        const usersNav = document.getElementById('usersNav');
+        if (usersNav) {
+            usersNav.style.display = 'none';
         }
     }
 }
