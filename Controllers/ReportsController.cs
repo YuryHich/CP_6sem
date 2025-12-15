@@ -44,5 +44,20 @@ public class ReportsController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    [HttpPost("loans-pdf")]
+    public async Task<IActionResult> GenerateLoansPdfReport()
+    {
+        try
+        {
+            var pdfBytes = await _reportService.GenerateLoansPdfReportAsync();
+            var fileName = $"loans_report_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.pdf";
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }
 

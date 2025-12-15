@@ -23,6 +23,18 @@
     </div>
 </form>
 
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Отчёт о взятых книгах</h5>
+        <p class="card-text">Генерация PDF отчёта со всеми займами (пользователь, книга, даты, статус).</p>
+        <button type="button" class="btn btn-info" onclick="generateLoansReport()">
+            <span id="loansReportBtnText">Генерация PDF отчёта о займах</span>
+            <span id="loansReportBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
+        <div id="loansReportMessage" class="alert mt-3" style="display: none;"></div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         const token = localStorage.getItem('token');
@@ -71,6 +83,63 @@
                 }
             } catch (error) {
                 alert('Ошибка соединения');
+            }
+        }
+
+        async function generateLoansReport() {
+            const loansReportBtn = document.getElementById('loansReportBtnText');
+            const loansReportBtnSpinner = document.getElementById('loansReportBtnSpinner');
+            const loansReportMessage = document.getElementById('loansReportMessage');
+
+            loansReportBtn.textContent = 'Генерация...';
+            loansReportBtnSpinner.classList.remove('d-none');
+            loansReportMessage.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/reports/loans-pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let fileName = 'loans_report.pdf';
+                    if (contentDisposition) {
+                        const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                        if (fileNameMatch) {
+                            fileName = fileNameMatch[1];
+                        }
+                    }
+                    
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    loansReportMessage.className = 'alert alert-success mt-3';
+                    loansReportMessage.textContent = 'PDF отчёт успешно сгенерирован и загружен.';
+                    loansReportMessage.style.display = 'block';
+                } else {
+                    const error = await response.json();
+                    loansReportMessage.className = 'alert alert-danger mt-3';
+                    loansReportMessage.textContent = error.error || 'Ошибка при генерации отчёта';
+                    loansReportMessage.style.display = 'block';
+                }
+            } catch (error) {
+                loansReportMessage.className = 'alert alert-danger mt-3';
+                loansReportMessage.textContent = 'Ошибка соединения';
+                loansReportMessage.style.display = 'block';
+            } finally {
+                loansReportBtn.textContent = 'Генерация PDF отчёта о займах';
+                loansReportBtnSpinner.classList.add('d-none');
             }
         }
     </script>

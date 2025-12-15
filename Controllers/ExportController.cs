@@ -31,5 +31,21 @@ public class ExportController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    [HttpPost("xml")]
+    public async Task<IActionResult> ExportToXml()
+    {
+        try
+        {
+            var xmlBytes = await _exportService.ExportDatabaseToXmlAsync();
+            var fileName = $"library_backup_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xml";
+            
+            return File(xmlBytes, "application/xml; charset=utf-8", fileName);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }
 
