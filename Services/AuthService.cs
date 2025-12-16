@@ -13,13 +13,15 @@ namespace LibraryManagement.Services;
 public class AuthService : IAuthService
 {
     private readonly UserRepository _userRepository;
+    private readonly IEmailService _emailService;
     private readonly string _jwtKey;
     private readonly string _jwtIssuer;
     private readonly string _jwtAudience;
 
-    public AuthService(DatabaseConnection db, IConfiguration configuration)
+    public AuthService(DatabaseConnection db, IConfiguration configuration, IEmailService emailService)
     {
         _userRepository = new UserRepository(db);
+        _emailService = emailService;
         _jwtKey = configuration["Jwt:Key"] ?? "YourSuperSecretKeyForJWTTokenGenerationThatIsAtLeast32Characters";
         _jwtIssuer = configuration["Jwt:Issuer"] ?? "LibraryManagement";
         _jwtAudience = configuration["Jwt:Audience"] ?? "LibraryManagementUsers";
@@ -38,6 +40,12 @@ public class AuthService : IAuthService
             return null;
         }
 
+        // Проверяем, подтвержден ли email
+        if (!user.IsEmailConfirmed)
+        {
+            throw new Exception("Email не подтверждён. Пожалуйста, подтвердите email перед входом.");
+        }
+
         var role = await _userRepository.GetUserRoleAsync(user.UserId);
         var token = GenerateJwtToken(user.UserId, user.Username, role);
 
@@ -50,7 +58,7 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task<AuthResponseDTO> RegisterAsync(RegisterDTO registerDto)
+    public async Task<RegisterResponseDTO> RegisterAsync(RegisterDTO registerDto)
     {
         // Проверяем, существует ли пользователь
         var existingUser = await _userRepository.GetUserByUsernameAsync(registerDto.Username);
@@ -66,17 +74,56 @@ public class AuthService : IAuthService
         }
 
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
-        var userId = await _userRepository.CreateUserAsync(registerDto, passwordHash);
+        
+        // Генерируем токен подтверждения (GUID)
+        var confirmationToken = Guid.NewGuid().ToString();
+        
+        var userId = await _userRepository.CreateUserAsync(registerDto, passwordHash, confirmationToken);
 
-        var token = GenerateJwtToken(userId, registerDto.Username, "user");
+        // Отправляем email с подтверждением
+        await _emailService.SendEmailConfirmationAsync(registerDto.Email, confirmationToken, registerDto.Username);
 
-        return new AuthResponseDTO
+        return new RegisterResponseDTO
         {
-            Token = token,
-            UserId = userId,
-            Username = registerDto.Username,
-            Role = "user"
+            Message = "Регистрация успешна! Пожалуйста, проверьте вашу почту и подтвердите email.",
+            RequiresEmailConfirmation = true
         };
+    }
+
+    public async Task<bool> ConfirmEmailAsync(string email, string token)
+    {
+        return await _userRepository.ConfirmEmailAsync(email, token);
+    }
+
+    public async Task<bool> RequestPasswordResetAsync(string email)
+    {
+        var user = await _userRepository.GetUserByEmailAsync(email);
+        if (user == null)
+        {
+            // Не раскрываем, существует ли email (безопасность)
+            return true;
+        }
+
+        // Генерируем токен сброса пароля (GUID)
+        var resetToken = Guid.NewGuid().ToString();
+        var expiration = DateTime.UtcNow.AddHours(1);
+
+        await _userRepository.SetPasswordResetTokenAsync(email, resetToken, expiration);
+        await _emailService.SendPasswordResetAsync(email, resetToken, user.Username);
+
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordAsync(string email, string token, string newPassword)
+    {
+        var user = await _userRepository.GetUserByResetTokenAsync(email, token);
+        if (user == null)
+        {
+            return false;
+        }
+
+        var newPasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        return await _userRepository.ResetPasswordAsync(user.UserId, newPasswordHash);
     }
 
     private string GenerateJwtToken(Guid userId, string username, string role)

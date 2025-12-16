@@ -20,6 +20,9 @@
             <button type="submit" class="btn btn-primary w-100">Войти</button>
         </form>
         <p class="mt-3 text-center">
+            <a href="/Account/ForgotPassword">Забыли пароль?</a>
+        </p>
+        <p class="mt-2 text-center">
             Нет аккаунта? <a href="/auth/register">Зарегистрироваться</a>
         </p>
     </div>
@@ -52,8 +55,14 @@
                     window.location.href = '/books';
                 } else {
                     const error = await response.json();
-                    errorDiv.textContent = error.error || 'Ошибка входа';
+                    const errorMessage = error.error || 'Ошибка входа';
+                    errorDiv.textContent = errorMessage;
                     errorDiv.style.display = 'block';
+                    
+                    // Если ошибка связана с неподтвержденным email, предлагаем перейти на страницу подтверждения
+                    if (errorMessage.includes('подтверждён') || errorMessage.includes('подтвердите')) {
+                        errorDiv.innerHTML += '<br><a href="/Account/ConfirmEmail" class="btn btn-link p-0">Подтвердить email</a>';
+                    }
                 }
             } catch (error) {
                 errorDiv.textContent = 'Ошибка соединения';

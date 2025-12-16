@@ -1,0 +1,243 @@
+@page
+@model LibraryManagement.Pages.Admin.ExportModel
+@{
+    ViewData["Title"] = "Экспорт базы данных";
+}
+
+<h2>Экспорт базы данных</h2>
+
+<div class="card">
+    <div class="card-body">
+        <p class="card-text">
+            Экспорт данных из ключевых таблиц базы данных в выбранном формате.
+            <br><small class="text-muted">Будут экспортированы: Books, Users (без паролей), Loans, BookCopies, Reviews, Authors, Genres, Publishers, Languages, Branches</small>
+        </p>
+        <div class="mb-3">
+            <label for="exportFormat" class="form-label">Формат экспорта:</label>
+            <select id="exportFormat" class="form-select" style="max-width: 200px;">
+                <option value="csv">CSV</option>
+                <option value="xml">XML</option>
+            </select>
+        </div>
+        <button id="exportBtn" class="btn btn-primary" onclick="exportDatabase()">
+            <span id="exportBtnText">Экспорт БД</span>
+            <span id="exportBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        </button>
+        <div id="exportMessage" class="alert mt-3" style="display: none;"></div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Импорт базы данных</h5>
+        <p class="card-text">
+            Импорт данных из CSV или XML файла. Внимание: все существующие данные будут удалены!
+            <br><small class="text-muted">Файл должен быть экспортирован из этой же системы.</small>
+        </p>
+        <form id="importForm" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="importFile" class="form-label">Выберите файл (CSV или XML):</label>
+                <input type="file" class="form-control" id="importFile" accept=".csv,.xml" required>
+            </div>
+            <button type="submit" id="importBtn" class="btn btn-warning">
+                <span id="importBtnText">Импорт</span>
+                <span id="importBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+        </form>
+        <div id="importMessage" class="alert mt-3" style="display: none;"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        }
+
+        async function exportDatabase() {
+            const exportBtn = document.getElementById('exportBtn');
+            const exportBtnText = document.getElementById('exportBtnText');
+            const exportBtnSpinner = document.getElementById('exportBtnSpinner');
+            const exportMessage = document.getElementById('exportMessage');
+            const exportFormat = document.getElementById('exportFormat').value;
+
+            exportBtn.disabled = true;
+            exportBtnText.textContent = 'Экспорт...';
+            exportBtnSpinner.classList.remove('d-none');
+            exportMessage.style.display = 'none';
+
+            try {
+                const endpoint = exportFormat === 'xml' ? '/api/export/xml' : '/api/export/csv';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Получаем имя файла из заголовка Content-Disposition
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let fileName = `library_backup.${exportFormat}`;
+                    if (contentDisposition) {
+                        const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                        if (fileNameMatch) {
+                            fileName = fileNameMatch[1];
+                        }
+                    }
+                    
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    exportMessage.className = 'alert alert-success mt-3';
+                    exportMessage.textContent = 'Экспорт завершён успешно! Файл загружен.';
+                    exportMessage.style.display = 'block';
+
+                    // Показываем toast-уведомление (если есть библиотека для toast)
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                        const toastElement = document.createElement('div');
+                        toastElement.className = 'toast align-items-center text-white bg-success border-0';
+                        toastElement.setAttribute('role', 'alert');
+                        toastElement.innerHTML = `
+                            <div class="d-flex">
+                                <div class="toast-body">Экспорт завершён</div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>
+                        `;
+                        document.body.appendChild(toastElement);
+                        const toast = new bootstrap.Toast(toastElement);
+                        toast.show();
+                        setTimeout(() => document.body.removeChild(toastElement), 5000);
+                    }
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка при экспорте');
+                }
+            } catch (error) {
+                exportMessage.className = 'alert alert-danger mt-3';
+                exportMessage.textContent = error.message || 'Ошибка соединения';
+                exportMessage.style.display = 'block';
+            } finally {
+                exportBtn.disabled = false;
+                exportBtnText.textContent = 'Экспорт БД';
+                exportBtnSpinner.classList.add('d-none');
+            }
+        }
+
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const importBtn = document.getElementById('importBtn');
+            const importBtnText = document.getElementById('importBtnText');
+            const importBtnSpinner = document.getElementById('importBtnSpinner');
+            const importMessage = document.getElementById('importMessage');
+            const importFile = document.getElementById('importFile');
+            
+            if (!importFile.files || importFile.files.length === 0) {
+                importMessage.className = 'alert alert-danger mt-3';
+                importMessage.textContent = 'Выберите файл для импорта';
+                importMessage.style.display = 'block';
+                return;
+            }
+            
+            const file = importFile.files[0];
+            const fileName = file.name.toLowerCase();
+            const isCsv = fileName.endsWith('.csv');
+            const isXml = fileName.endsWith('.xml');
+            
+            if (!isCsv && !isXml) {
+                importMessage.className = 'alert alert-danger mt-3';
+                importMessage.textContent = 'Поддерживаются только файлы .csv или .xml';
+                importMessage.style.display = 'block';
+                return;
+            }
+            
+            // Подтверждение
+            if (!confirm('Внимание! Все существующие данные будут удалены и заменены данными из файла. Продолжить?')) {
+                return;
+            }
+            
+            importBtn.disabled = true;
+            importBtnText.textContent = 'Импорт...';
+            importBtnSpinner.classList.remove('d-none');
+            importMessage.style.display = 'none';
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const endpoint = isCsv ? '/api/import/csv' : '/api/import/xml';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    importMessage.className = 'alert alert-success mt-3';
+                    importMessage.textContent = data.message || 'Импорт завершён. БД обновлена.';
+                    importMessage.style.display = 'block';
+                    importFile.value = '';
+                    
+                    // Используем SweetAlert2 если доступен, иначе обычный alert
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Успех',
+                            text: data.message || 'Импорт завершён. БД обновлена.'
+                        });
+                    } else {
+                        alert(data.message || 'Импорт завершён. БД обновлена.');
+                    }
+                } else {
+                    const errorMsg = data.error || 'Ошибка при импорте';
+                    importMessage.className = 'alert alert-danger mt-3';
+                    importMessage.textContent = errorMsg;
+                    importMessage.style.display = 'block';
+                    
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Ошибка',
+                            text: errorMsg
+                        });
+                    } else {
+                        alert('Неверный формат файла. Импорт отменён.');
+                    }
+                }
+            } catch (error) {
+                importMessage.className = 'alert alert-danger mt-3';
+                importMessage.textContent = 'Ошибка соединения';
+                importMessage.style.display = 'block';
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Ошибка',
+                        text: 'Ошибка соединения с сервером'
+                    });
+                }
+            } finally {
+                importBtn.disabled = false;
+                importBtnText.textContent = 'Импорт';
+                importBtnSpinner.classList.add('d-none');
+            }
+        });
+    </script>
+}
+

@@ -60,11 +60,22 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('username', data.username);
-                    localStorage.setItem('role', data.role);
-                    window.location.href = '/books';
+                    if (data.requiresEmailConfirmation) {
+                        alert(data.message || 'Регистрация успешна! Пожалуйста, проверьте вашу почту и подтвердите email.');
+                        window.location.href = '/auth/login';
+                    } else {
+                        // Если email не требуется подтверждение (для обратной совместимости)
+                        if (data.token) {
+                            localStorage.setItem('token', data.token);
+                            localStorage.setItem('userId', data.userId);
+                            localStorage.setItem('username', data.username);
+                            localStorage.setItem('role', data.role);
+                            window.location.href = '/books';
+                        } else {
+                            alert(data.message || 'Регистрация успешна!');
+                            window.location.href = '/auth/login';
+                        }
+                    }
                 } else {
                     const error = await response.json();
                     errorDiv.textContent = error.error || 'Ошибка регистрации';

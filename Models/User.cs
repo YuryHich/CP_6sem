@@ -12,5 +12,9 @@ public class User
     public DateTime RegistrationDate { get; set; }
     public Guid RoleId { get; set; }
     public bool IsActive { get; set; }
+    public string? ConfirmationToken { get; set; }
+    public bool IsEmailConfirmed { get; set; }
+    public string? PasswordResetToken { get; set; }
+    public DateTime? ResetTokenExpiration { get; set; }
 }
 

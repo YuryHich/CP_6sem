@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using LibraryManagement.Services;
 using LibraryManagement.DataAccess;
+using Microsoft.Extensions.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,17 +18,28 @@ builder.Services.AddSingleton(new DatabaseConnection(connectionString));
 // Register services
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddSingleton<IEmailService>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var logger = sp.GetRequiredService<ILogger<EmailService>>();
+    return new EmailService(configuration, logger);
+});
 builder.Services.AddScoped<IAuthService>(sp => 
 {
     var db = sp.GetRequiredService<DatabaseConnection>();
     var config = sp.GetRequiredService<IConfiguration>();
-    return new AuthService(db, config);
+    var emailService = sp.GetRequiredService<IEmailService>();
+    return new AuthService(db, config, emailService);
 });
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
+builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddScoped<IImportService, ImportService>();
+builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourSuperSecretKeyForJWTTokenGenerationThatIsAtLeast32Characters";

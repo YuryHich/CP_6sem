@@ -1,0 +1,267 @@
+@page
+@model LibraryManagement.Pages.Admin.UsersModel
+@{
+    ViewData["Title"] = "Управление пользователями";
+}
+
+<h2>Управление пользователями</h2>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <input type="text" id="searchInput" class="form-control" placeholder="Поиск по имени или email...">
+            </div>
+            <div class="col-md-3">
+                <select id="roleFilter" class="form-select">
+                    <option value="">Все роли</option>
+                    <option value="admin">Администратор</option>
+                    <option value="user">Пользователь</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="date" id="dateFilter" class="form-control" placeholder="Дата регистрации">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="loadUsers()">Обновить</button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('username')" style="cursor: pointer;">
+                            Имя пользователя <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('email')" style="cursor: pointer;">
+                            Email <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('registrationDate')" style="cursor: pointer;">
+                            Дата регистрации <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('roleName')" style="cursor: pointer;">
+                            Роль <i class="fas fa-sort"></i>
+                        </th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <tr>
+                        <td colspan="5" class="text-center">Загрузка...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav aria-label="Pagination">
+            <ul class="pagination justify-content-center" id="pagination"></ul>
+        </nav>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+
+        if (!token || role !== 'admin') {
+            window.location.href = '/auth/login';
+        }
+
+        let allUsers = [];
+        let filteredUsers = [];
+        let currentPage = 1;
+        const pageSize = 10;
+        let sortColumn = 'registrationDate';
+        let sortDirection = 'desc';
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/usermanagement', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки пользователей');
+                }
+
+                allUsers = await response.json();
+                applyFilters();
+            } catch (error) {
+                console.error('Ошибка:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить список пользователей'
+                });
+            }
+        }
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const roleFilter = document.getElementById('roleFilter').value.toLowerCase();
+            const dateFilter = document.getElementById('dateFilter').value;
+
+            filteredUsers = allUsers.filter(user => {
+                const matchesSearch = user.username.toLowerCase().includes(searchTerm) || 
+                                     user.email.toLowerCase().includes(searchTerm);
+                const matchesRole = !roleFilter || user.roleName.toLowerCase() === roleFilter;
+                const matchesDate = !dateFilter || user.registrationDate.startsWith(dateFilter);
+
+                return matchesSearch && matchesRole && matchesDate;
+            });
+
+            sortUsers();
+            renderTable();
+            renderPagination();
+        }
+
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            sortUsers();
+            renderTable();
+        }
+
+        function sortUsers() {
+            filteredUsers.sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+
+                if (sortColumn === 'registrationDate') {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('usersTableBody');
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageUsers = filteredUsers.slice(start, end);
+
+            if (pageUsers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Пользователи не найдены</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = pageUsers.map(user => `
+                <tr>
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.email)}</td>
+                    <td>${new Date(user.registrationDate).toLocaleDateString('ru-RU')}</td>
+                    <td><span class="badge bg-${user.roleName === 'admin' ? 'danger' : 'primary'}">${user.roleName}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.userId}', '${escapeHtml(user.username)}')">
+                            <i class="fas fa-trash"></i> Удалить
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredUsers.length / pageSize);
+            const pagination = document.getElementById('pagination');
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                html += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+                    </li>
+                `;
+            }
+            pagination.innerHTML = html;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            renderTable();
+            renderPagination();
+        }
+
+        async function deleteUser(userId, username) {
+            const result = await Swal.fire({
+                title: 'Подтверждение удаления',
+                text: `Вы уверены, что хотите удалить пользователя "${username}"? Это действие необратимо.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Да, удалить',
+                cancelButtonText: 'Отмена'
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/usermanagement/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Успех',
+                        text: 'Пользователь успешно удалён',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                    await loadUsers();
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Ошибка',
+                        text: data.error || 'Не удалось удалить пользователя'
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Ошибка',
+                    text: 'Ошибка соединения с сервером'
+                });
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Фильтрация при вводе
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+        document.getElementById('roleFilter').addEventListener('change', applyFilters);
+        document.getElementById('dateFilter').addEventListener('change', applyFilters);
+
+        // Загружаем пользователей при загрузке страницы
+        loadUsers();
+    </script>
+}
+
