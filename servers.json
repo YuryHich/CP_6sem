@@ -1,0 +1,10 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "library_managementEDITED",
+      "Host": "postgresCP",
+      "Port": 5432,
+      "Username": "postgres"
+    }
+  }
+}

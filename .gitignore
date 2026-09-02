@@ -84,3 +84,7 @@ wwwroot/images/*.png
 # User secrets
 secrets.json
 
+# Ignore local appsettings and project agent notes
+appsettings.json
+AGENTS.md
+

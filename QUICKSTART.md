@@ -93,3 +93,28 @@ VALUES (
 - Убедитесь, что установлен .NET 8.0 SDK
 - Выполните `dotnet restore` для восстановления пакетов NuGet
 
+---
+
+## Быстрый запуск через Docker Compose (без редактирования файлов)
+
+Если вы предпочитаете не изменять `appsettings.json`, можно поднять только Postgres и pgAdmin через `docker-compose.yml`. По умолчанию проект ожидает базу с именем `library_managementEDITED`, которая конфигурируется в `docker-compose.yml`.
+
+1. Поднять контейнеры:
+```powershell
+docker compose up -d
+```
+
+2. Скопировать `init.sql` в контейнер и выполнить (создаст схемы и тестовые данные):
+```powershell
+docker cp .\init.sql postgresCP:/init.sql
+docker exec -it postgresCP psql -U postgres -d library_managementEDITED -f /init.sql
+```
+
+3. Запустите приложение локально как обычно:
+```powershell
+dotnet restore
+dotnet run
+```
+
+После этого приложение должно подключаться к поднятому контейнеру без правок в файлах.
+

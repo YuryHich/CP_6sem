@@ -1,13 +1,13 @@
 services:
-  postgres:
-    container_name: postgres
+  postgresCP:
+    container_name: postgresCP
     image: postgres:latest
     environment:
-      POSTGRES_DB: "bookstoredb"
+      POSTGRES_DB: "library_managementEDITED"
       POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "123"
+      POSTGRES_PASSWORD: "password"
     volumes:
-      - postgres-data:/var/lib/postgresql
+      - postgresCP-dataEDITED:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
@@ -16,8 +16,8 @@ services:
       timeout: 5s
       retries: 5
 
-  pgadmin:
-    container_name: pgadmin
+  pgadminCP:
+    container_name: pgadminCP
     image: dpage/pgadmin4:latest
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
@@ -27,13 +27,13 @@ services:
     ports:
       - "5050:80"
     volumes:
-      - pgadmin-data:/var/lib/pgadmin
+      - pgadminCP-data:/var/lib/pgadmin
       - ./servers.json:/pgadmin4/servers.json
     depends_on:
-      postgres:
+      postgresCP:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  postgres-data:
-  pgadmin-data:
+  postgresCP-dataEDITED:
+  pgadminCP-data:
